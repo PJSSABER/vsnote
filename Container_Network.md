@@ -25,11 +25,11 @@
 ##### Docker 7 model
 1.  default bridge
     both level 2 && 3 network v-device, connecting two side of the bridge.给网桥设置IP地址后，就能像进行三层网络的转发
-    ![](image.png.png)
+    ![](/images/image.png.png)
     in this mod, each container will use a Vinterface toconnect to default
     docker bridge.
     Also use DHCP to allocate ip to each container. containers connect to each other.
-    ![](2023-01-19-13-43-47.png)
+    ![](/images/2023-01-19-13-43-47.png)
     注意这里多个container在使用同一网桥的时候是在一个网段的
     网桥与container内部的虚拟网卡通过veth-pair设备连接
 2.  user defined bridge
@@ -39,18 +39,18 @@
 4.  Mac Vlan
     每个container会获取一个虚拟mac地址，与host的网关直连
     cons: 1.需要混雜模式（英語：promiscuous mode) 2. NO DHCP 需要自己指定IP
-    ![](2023-01-19-10-57-27.png)
+    ![](/images/2023-01-19-10-57-27.png)
 5. IP Vlan l2
     与4相同， 但与host share一个mac地址，每个container会获取一个IP地址
 6. IP valn l3
     利用3层网络，让host将数据转发给container 需要修改HOST上的routing table
-    ![](2023-01-19-10-58-17.png)
+    ![](/images/2023-01-19-10-58-17.png)
 
 ##### flannel 
-![](2023-01-20-11-34-43.png)
+![](/images/2023-01-20-11-34-43.png)
 ##### calic
 同一局域网下可以使用纯的3层网络，不需要VXLAN进行拆解包，更加高效
-![](2023-01-20-11-45-48.png)
+![](/images/2023-01-20-11-45-48.png)
 好像连网桥都不需要
 不同局域网的时候如何处理：使用隧道设备
 #### useful command
