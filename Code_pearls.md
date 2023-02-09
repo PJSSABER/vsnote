@@ -126,4 +126,38 @@ prons:
 - 1.  TLB caches memory entries and it's a fixed number. the bigger size your pages are, the bigger chance TLB hit.
 - 2.  Bigger pagesizes make smaller number of pages, using less memory to store pages and it has simpler structure than normal pages. So even TLB miss, it's faster to lookup in page tables.
 
-cons:
+Usage of hugepages:
+1. Transparent hugepage:operating system will replace the physical backing of processes with huge pages on its own when it deems it possible/necessary; two modes: 
+   a. always: OS take control
+   b. madvise: program want to use hugepage should explicitly do system-call
+
+2. Using pseudo file-system hugetlbfs: hugetlbfs uses a specific pool of huge pages
+
+#### RAII : Resource Acquisition Is Initialization 
+binds the life cycle of a resource that must be acquired before use (allocated heap memory, thread of execution, open socket, open file, locked mutex, disk space, database connection—anything that exists in limited supply) to the lifetime of an object
+1. 将指针封装到类对象中，构造函数获取资源，并创建类实例，可以抛出异常；析构函数释放资源
+2. 总是使用临时变量（某个函数内部，某个循环内部，栈内等）获取资源，这样资源的生命周期和临时变量的生命周期一样，当临时变量释放的时候，编译器会自动调用其析构函数，释放所持资源，而不需要手动释放。
+3. 资源指：堆上内存，线程所持互斥量等，例子：
+``` C++
+std::mutex m;
+ 
+void bad() 
+{
+    m.lock();                    // acquire the mutex
+    f();                         // if f() throws an exception, the mutex is never released
+    if(!everything_ok()) return; // early return, the mutex is never released
+    m.unlock();                  // if bad() reaches this statement, the mutex is released
+}
+ 
+void good()
+{
+    std::lock_guard<std::mutex> lk(m); // RAII class: mutex acquisition is initialization
+    f();                               // if f() throws an exception, the mutex is released
+    if(!everything_ok()) return;       // early return, the mutex is released
+}                                      // if good() returns normally, the mutex is released
+```
+
+手动实现智能指针，这里还可以引入引用计数
+```C++
+
+```
