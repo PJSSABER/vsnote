@@ -157,7 +157,54 @@ void good()
 }                                      // if good() returns normally, the mutex is released
 ```
 
-手动实现智能指针，这里还可以引入引用计数
+手动实现智能指针，引入引用计数
 ```C++
+    template<class T> class mysmart_pointer {
+    private:
+        T* obj;
+        uint* ref_count; // 可能出现多个mysmart_pointer实例指向同一个资源，因此需要在（堆、公共内存）上维护引用计数，保证各个实例都能正确计数
+    
+    public: 
+        mysmart_pointer(T* target); // 构造函数
+        mysmart_pointer(mysmart_pointer<T>& sptr); // 构造函数，两个实例指向同一个资源
+        T get_value(); 
+        ~mysmart_pointer(); // 析构函数
+        mysmart_pointer<T> & operator=(mysmart_pointer<T> & sptr); // 重载等于符号，意为将当前指针实例放弃，增加一个指向src的智能指针实例
+    }；
 
+    mysmart_pointer<T>::mysmart_pointer(T* target) {
+        this->obj = target;
+        this->ref_count = new uint;
+        *(this->ref_count) = 1;
+    }   
+
+    mysmart_pointer<T>::mysmart_pointer(mysmart_pointer<T>& sptr) {
+        this->obj = sptr.obj;
+        this->ref_count = sptr.ref_count;
+        *(this->ref_count) += 1;
+    }   
+
+    mysmart_pointer<T>::get_value() {
+        return *(this->obj);
+    }
+
+    mysmart_pointer<T>::~mysmart_pointer() {
+        *(this->ref_count) -= 1;
+        if (*(this->ref_count) == 0) {
+            delete this->obj;
+            delete this->ref_count;
+        }
+    }
+
+    mysmart_pointer<T>& mysmart_pointer<T>::operator=(mysmart_pointer<T>& sptr) {
+        if (this == &sptr)
+            return *this; // 必须要判断，否则已经释放资源
+        if (*(this->ref_count) > 0) {  // == 0 是否存在？ 不应该，智能指针不允许指针悬垂，不要手动使用析构
+            this->~mysmart_pointer();
+        }
+        this->~mysmart_pointer();
+        this->obj = sptr.obj;
+        this->ref_count = sptr.ref_count;
+        *(this->ref_count) += 1;
+    }
 ```
