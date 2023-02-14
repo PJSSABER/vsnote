@@ -36,6 +36,16 @@
     # untaint
     kubectl taint node wsf-spr4-sh node-role.kubernetes.io/master:NoSchedule-
     ```
+- K8S Qos
+    Guaranteed：Pod 中每个容器都必须有内存/CPU 限制和请求，而且值必须相等。如果一个容器只指明limit而未设定request，则request的值等于limit值。
+    Burstable：Pod 至少有一个容器有内存或者 CPU 请求且不满足 Guarantee 等级的要求，即内存/CPU 的值设置的不同。
+    BestEffort：容器必须没有任何内存或者 CPU 的限制或请求。
+    Guaranteed --> Burstable --> BestEffort
+
+- 获取POD/deployment/service的yaml
+    ```shell
+        kubectl get deploy deploymentname -o yaml 
+    ```
 ### docker
 
 - 修改dockers配置

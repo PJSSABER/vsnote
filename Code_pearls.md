@@ -173,6 +173,7 @@ void good()
     }；
 
     mysmart_pointer<T>::mysmart_pointer(T* target) {
+        assert(target != nullptr); // 避免指针为空
         this->obj = target;
         this->ref_count = new uint;
         *(this->ref_count) = 1;
@@ -199,7 +200,7 @@ void good()
     mysmart_pointer<T>& mysmart_pointer<T>::operator=(mysmart_pointer<T>& sptr) {
         if (this == &sptr)
             return *this; // 必须要判断，否则已经释放资源
-        if (*(this->ref_count) > 0) {  // == 0 是否存在？ 不应该，智能指针不允许指针悬垂，不要手动使用析构
+        if (*(this->ref_count) > 0) {  // == 0 是否存在？ 不应该，智能指针不允许指针悬垂
             this->~mysmart_pointer();
         }
         this->~mysmart_pointer();
@@ -208,3 +209,35 @@ void good()
         *(this->ref_count) += 1;
     }
 ```
+
+#### smart pointers in C++
+1. unique_ptr
+   - container for a raw pointer, explicitly prevents copying of its contained pointer
+   - A unique_ptr cannot be copied because its copy constructor and assignment operators are explicitly deleted
+   - 创建一个新对象 ```auto u =         std::make_unique<SomeType>(constructor, parameters, here);```
+   -     
+        ``` C++
+        std::unique_ptr<int> p1(new int(5));
+        std::unique_ptr<int> p2 = p1;  // Compile error.
+        std::unique_ptr<int> p3 = std::move(p1);  // Transfers ownership. p3 now owns the memory and p1 is set to nullptr.
+        ```
+2. shared_ptr\ weak_ptr
+   -  shared_ptr maintains reference counting ownership of its contained pointer in cooperation with all copies of the shared_ptr. An object referenced by the contained raw pointer will be destroyed when and only when all copies of the shared_ptr have been destroyed
+   -  A weak_ptr is a container for a raw pointer. It is created as a copy of a shared_ptr. The existence or destruction of weak_ptr copies of a shared_ptr have no effect on the shared_ptr or its other copies. After all copies of a shared_ptr have been destroyed, all weak_ptr copies become empty. 防止循环引用
+   - 
+        ```C++
+            std::shared_ptr<int> p1 = std::make_shared<int>(5);
+            std::weak_ptr<int> wp1 {p1};  // p1 owns the memory. 
+
+            {
+            std::shared_ptr<int> p2 = wp1.lock();  // Now p1 and p2 own the memory.
+            // p2 is initialized from a weak pointer, so you have to check if the
+            // memory still exists!
+            if (p2) {
+                DoSomethingWith(p2);
+            }
+            }
+            // p2 is destroyed. Memory is owned by p1.
+        ```
+
+#### 
