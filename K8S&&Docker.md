@@ -46,6 +46,11 @@
     ```shell
         kubectl get deploy deploymentname -o yaml 
     ```
+
+- 重启calico
+    ```shell
+        kubectl delete -f calico.yaml && kubectl apply -f calico.yaml 
+    ```
 ### docker
 
 - 修改dockers配置

@@ -210,7 +210,7 @@ void good()
     }
 ```
 
-#### smart pointers in C++
+#### Smart pointers in C++
 1. unique_ptr
    - container for a raw pointer, explicitly prevents copying of its contained pointer
    - A unique_ptr cannot be copied because its copy constructor and assignment operators are explicitly deleted
@@ -240,4 +240,7 @@ void good()
             // p2 is destroyed. Memory is owned by p1.
         ```
 
-#### 
+#### dynamic binding C++ class: virtual function
+1. static binding:  
+    父成员函数是
+2. dynamic binding:
