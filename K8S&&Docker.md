@@ -51,6 +51,27 @@
     ```shell
         kubectl delete -f calico.yaml && kubectl apply -f calico.yaml 
     ```
+
+- 删除节点 - 重新加入节点
+```shell 
+### 删除节点
+# 设置为维护模式 在master操作
+kubectl drain <node-to-delete> --delete-local-data --force --ignore-daemonsets node/<node-to-delete>
+
+# 删除节点 在master操作
+kubectl delete node <node-to-delete>
+
+### node 节点重新加入集群
+# master节点生成token
+kubeadm token create --print-join-command
+
+# optional : 在node 节点 删除之前相关文件
+systemctl stop kubelet
+rm -rf /etc/kubernetes/*
+
+# 重新加入集群， 复制master生成的token： <token>
+kubeadm join ×.×.×.×:6443 --token <token>
+```
 ### docker
 
 - 修改dockers配置

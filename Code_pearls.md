@@ -241,6 +241,33 @@ void good()
         ```
 
 #### dynamic binding C++ class: virtual function
-1. static binding:  
-    父成员函数是
+1. early binding:  
+    
 2. dynamic binding:
+
+
+#### extern关键字
+```C
+// 申明， 在链接中被定义为弱符号 建立存储空间的声明称之为“定义”，不需要建立存储空间的声明称之为“声明”。
+void int get sum();
+extern void int get sum(); // 与上一条语句同样作用 申明一个可外部调用的全局函数
+extern int a;  /* only this one is special!!! */
+
+// 定义，链接中被视作强符号，重定义将导致错误！
+int a;
+int a = 0;
+extern int a = 0;  // 与上一条语句同样作用 申明一个可外部调用的全局变量
+
+void int get sum() {
+    return；
+}
+
+extern void int get sum() {
+    return；
+}
+
+/*对变量而言，如果你想在本源文件(例如文件名A)中使用另一个源文件(例如文件名B)的变量，方法有2种：(1)在A文件中必须用extern声明在B文件中定义的变量(当然是全局变量)；(2)在A文件中添加B文件对应的头文件，当然这个头文件包含B文件中的变量声明，也即在这个头文件中必须用extern声明该变量，否则，该变量又被定义一次。
+
+对函数而言，如果你想在本源文件(例如文件名A)中使用另一个源文件(例如文件名B)的函数，方法有2种：(1)在A文件中用extern声明在B文件中定义的函数(其实，也可省略extern，只需在A文件中出现B文件定义函数原型即可)；(2)在A文件中添加B文件对应的头文件，当然这个头文件包含B文件中的函数原型，在头文件中函数可以不用加extern。
+*/
+```

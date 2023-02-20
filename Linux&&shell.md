@@ -2,6 +2,7 @@
 - 检查打开文件、端口
     ```shell
     lsof -i tcp # root priv may need 
+    lsof -i :80
     fuser
     ```
 
