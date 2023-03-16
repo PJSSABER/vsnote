@@ -241,11 +241,59 @@ void good()
         ```
 
 #### dynamic binding C++ class: virtual function
+```C++
+//example
+class B
+{
+public:
+  virtual void bar();
+  virtual void qux();
+  void qux2();
+};
+
+void B::bar()
+{
+  std::cout << "This is B's implementation of bar" << std::endl;
+}
+
+void B::qux2()
+{
+  std::cout << "This is B's implementation of qux" << std::endl;
+}
+
+class C : public B
+{
+public:
+  void bar() override;
+};
+
+void C::bar()
+{
+  std::cout << "This is C's implementation of bar" << std::endl;
+}
+
+void C::qux2()
+{
+  std::cout << "This is C's implementation of qux" << std::endl;
+}
+B* b = new C();
+b->bar();
+b->qux2();
+```
 1. early binding:  
-    
+    Not using virtual function;
+    在编译时确定使用哪个函数
+    例如 b->qux2(), 会调用B::qux()，bad，实际类型是C
 2. dynamic binding:
+    例如 b->bar(), 会调用C::bar()，good，实际类型是C
+    实现  
+    ![Vtable and Vptr](images/Vtable&Vptr.PNG)
+    a. Vtable
+    For every class that contains virtual functions, the compiler constructs a virtual table, a.k.a vtable. The vtable contains an entry for each virtual function accessible by the class and stores a pointer to its definition.
 
-
+    b. Vptr
+    Every time the compiler creates a vtable for a class, it adds an extra argument to it: a pointer to the corresponding virtual table, called the vpointer.
+    vpointer is just another class member added by the compiler and increases the size of every object that has a vtable by sizeof(vpointer)
 #### extern关键字
 ```C
 // 申明， 在链接中被定义为弱符号 建立存储空间的声明称之为“定义”，不需要建立存储空间的声明称之为“声明”。
@@ -268,6 +316,6 @@ extern void int get sum() {
 
 /*对变量而言，如果你想在本源文件(例如文件名A)中使用另一个源文件(例如文件名B)的变量，方法有2种：(1)在A文件中必须用extern声明在B文件中定义的变量(当然是全局变量)；(2)在A文件中添加B文件对应的头文件，当然这个头文件包含B文件中的变量声明，也即在这个头文件中必须用extern声明该变量，否则，该变量又被定义一次。
 
-对函数而言，如果你想在本源文件(例如文件名A)中使用另一个源文件(例如文件名B)的函数，方法有2种：(1)在A文件中用extern声明在B文件中定义的函数(其实，也可省略extern，只需在A文件中出现B文件定义函数原型即可)；(2)在A文件中添加B文件对应的头文件，当然这个头文件包含B文件中的函数原型，在头文件中函数可以不用加extern。
+对函数\结构体而言，如果你想在本源文件(例如文件名A)中使用另一个源文件(例如文件名B)的函数，方法有2种：(1)在A文件中用extern声明在B文件中定义的函数(其实，也可省略extern，只需在A文件中出现B文件定义函数原型即可)；(2)在A文件中添加B文件对应的头文件，当然这个头文件包含B文件中的函数原型，在头文件中函数可以不用加extern。
 */
 ```

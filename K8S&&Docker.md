@@ -74,10 +74,23 @@ kubeadm join ×.×.×.×:6443 --token <token>
 ```
 ### docker
 
-- 修改dockers配置
+- 修改dockers配置\ insecure registry
     ```shell
     vim /etc/docker/daemon.json
     ```
+- containerd insecure registry
+    ``` shell
+    # /etc/containerd/config.toml
+    # change <IP>:5000 to your registry url
+
+    [plugins."io.containerd.grpc.v1.cri".registry]
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors]
+        [plugins."io.containerd.grpc.v1.cri".registry.mirrors."<IP>:5000"]
+        endpoint = ["http://<IP>:5000"]
+    [plugins."io.containerd.grpc.v1.cri".registry.configs]
+        [plugins."io.containerd.grpc.v1.cri".registry.configs."<IP>:5000".tls]
+        insecure_skip_verify = true
+    ```      
 - cp from container to host
     ```shell
     docker cp $container-name:$path $host_path

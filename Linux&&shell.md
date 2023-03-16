@@ -3,7 +3,8 @@
     ```shell
     lsof -i tcp # root priv may need 
     lsof -i :80
-    fuser
+    fuser -v -n tcp 8002
+    netstat -lnt(tcp) -lnu
     ```
 
 - 修改网卡中断数
@@ -52,4 +53,22 @@
     To free pagecache, dentries and inodes:
     echo 3 > /proc/sys/vm/drop_caches
     ```
+
+### system logs 
+```shell
+    dmesg
+
+    cat /proc/sys/kernel/core_pattern
+    vim /etc/sysctl.conf
+添加一行：kernel.core_pattern=core-%e-%p-%t
+ulimit -c
+```
+
+### sar usage
+```shell
+    sar -m CPU -P <core> 1 1000  # 指定core的频率抓取
+    sar -P 0 1 100  # 指定core的cpu使用率抓取
+    sar -u 1 600 > CPU_UTIL & # 全核使用率
+    sar -m CPU -u 1 600 > CPU_FREQ &  # 指全核频率
+```
 ### Shell/bash script
