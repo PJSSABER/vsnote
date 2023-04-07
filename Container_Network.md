@@ -1,4 +1,11 @@
 #### Network base point
+
+##### RPS
+Receive Packet Steering (RPS) is a feature in Linux networking that allows the distribution of incoming network traffic across multiple CPUs.
+
+When a network interface card (NIC) receives a packet, it typically interrupts the CPU to process the packet. If a single CPU receives too many interrupts, it can become a bottleneck and slow down network performance. RPS aims to solve this problem by distributing the processing of incoming packets across multiple CPUs, which can increase throughput and reduce latency.
+
+With RPS enabled, the NIC queues the incoming packets in hardware, and then the kernel assigns each packet to a processing CPU based on a hashing algorithm that takes into account various packet fields, such as the source and destination IP addresses and ports. The CPU that receives the interrupt then processes the packet, which can include forwarding it to another network device or processing it locally.
 ##### 隧道技术
 
 ##### vlan
@@ -75,3 +82,4 @@ ip netns
 # exec in specific net namespace
 ip netns exec namespace [your command]
 ```
+

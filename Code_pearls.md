@@ -295,11 +295,14 @@ b->qux2();
     Every time the compiler creates a vtable for a class, it adds an extra argument to it: a pointer to the corresponding virtual table, called the vpointer.
     vpointer is just another class member added by the compiler and increases the size of every object that has a vtable by sizeof(vpointer)
 #### extern关键字
-```C
+```C++
 // 申明， 在链接中被定义为弱符号 建立存储空间的声明称之为“定义”，不需要建立存储空间的声明称之为“声明”。
 void int get sum();
 extern void int get sum(); // 与上一条语句同样作用 申明一个可外部调用的全局函数
 extern int a;  /* only this one is special!!! */
+class Widget;
+enum Color;
+struct Swidget;
 
 // 定义，链接中被视作强符号，重定义将导致错误！
 int a;
@@ -314,8 +317,27 @@ extern void int get sum() {
     return；
 }
 
+class Widget {
+    ...
+};
+
+enum Color{red, yellow, blue};
+
+struct Swidget {
+    ...
+};
+
 /*对变量而言，如果你想在本源文件(例如文件名A)中使用另一个源文件(例如文件名B)的变量，方法有2种：(1)在A文件中必须用extern声明在B文件中定义的变量(当然是全局变量)；(2)在A文件中添加B文件对应的头文件，当然这个头文件包含B文件中的变量声明，也即在这个头文件中必须用extern声明该变量，否则，该变量又被定义一次。
 
 对函数\结构体而言，如果你想在本源文件(例如文件名A)中使用另一个源文件(例如文件名B)的函数，方法有2种：(1)在A文件中用extern声明在B文件中定义的函数(其实，也可省略extern，只需在A文件中出现B文件定义函数原型即可)；(2)在A文件中添加B文件对应的头文件，当然这个头文件包含B文件中的函数原型，在头文件中函数可以不用加extern。
 */
 ```
+
+#### lvalue && rvalue
+rvalues indicate objects eligible for move operations, while lvalues generally don’t
+a parameter of rvalue reference type, because the parameter itself is an lvalue
+
+parameters(形参) are lvalues, but the arguments（实参）
+with which they are initialized may be rvalues or lvalues
+
+Function objects created through lambda expressions are known as closures
