@@ -81,5 +81,10 @@ ip netns
 
 # exec in specific net namespace
 ip netns exec namespace [your command]
+
+# useful tracing tool
+tcpdump
+
+traceroute
 ```
 

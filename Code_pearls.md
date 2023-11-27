@@ -100,6 +100,25 @@ reference：https://gcc.gnu.org/onlinedocs/cpp/Search-Path.html
 使用gcc编译时， 可以使用 -I 参数增加搜索地址
 查看当前的默认搜索地址， 使用命令
 `cpp -v /dev/null -o /dev/null`
+#### 查看修改 默认 include 路径
+
+- 查看默认路径
+#gcc
+`gcc -print-prog-name=cc1plus` -v
+ 
+#g++
+`g++ -print-prog-name=cc1plus` -v
+
+- 查找顺序
+  - 编译时手动指定查找顺序 -I  
+    g++ -c ttcp_blocking.c -I /home/zhaozheng/code/chensuo/code/muduo-master/
+  - 查找环境变量  
+    #gcc
+    export C_INCLUDE_PATH=XXXX:$C_INCLUDE_PATH
+    #g++
+    export CPLUS_INCLUDE_PATH=XXX:$CPLUS_INCLUDE_PATH
+  -  系统默认标准库目录 (如果使用 include <>, 则只会搜索这里)
+
 
 #### placement new
 
@@ -230,12 +249,12 @@ void good()
             std::weak_ptr<int> wp1 {p1};  // p1 owns the memory. 
 
             {
-            std::shared_ptr<int> p2 = wp1.lock();  // Now p1 and p2 own the memory.
-            // p2 is initialized from a weak pointer, so you have to check if the
-            // memory still exists!
-            if (p2) {
-                DoSomethingWith(p2);
-            }
+                std::shared_ptr<int> p2 = wp1.lock();  // Now p1 and p2 own the memory.
+                // p2 is initialized from a weak pointer, so you have to check if the
+                // memory still exists!
+                if (p2) {
+                    DoSomethingWith(p2);
+                }
             }
             // p2 is destroyed. Memory is owned by p1.
         ```
@@ -341,3 +360,15 @@ parameters(形参) are lvalues, but the arguments（实参）
 with which they are initialized may be rvalues or lvalues
 
 Function objects created through lambda expressions are known as closures
+
+
+#### function point type
+The signature void *(*)(void *) in C represents a pointer to a function that takes a single argument of type void * and returns a void *.
+
+Here's a breakdown of what each part of the signature means:
+
+void *: This is the return type of the function. It indicates that the function returns a pointer to an unspecified type (i.e., a generic pointer).
+
+(*): This part of the signature indicates that we are dealing with a function pointer.
+
+(void *): Inside the parentheses, void * represents the parameter type of the function. It indicates that the function takes a single argument, which is a pointer to an unspecified type.

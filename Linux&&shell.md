@@ -37,7 +37,7 @@
 
 - 设置 CPU frequency
     ```shell
-    cpupower frequency-set -g performance 
+    sudo cpupower frequency-set -g performance 
     cpupower frequency-set -u 3.4GHz  
     cpupower frequency-set -d 3.4GHz 
     cpupower frequency-info
@@ -72,3 +72,7 @@ ulimit -c
     sar -m CPU -u 1 600 > CPU_FREQ &  # 指全核频率
 ```
 ### Shell/bash script
+
+
+sudo cpupower frequency-set -u 2.0GHz  
+sudo cpupower frequency-set -d 2.0GHz 
