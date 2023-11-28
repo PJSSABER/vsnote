@@ -136,3 +136,8 @@ Four series:
 - Attribute-like macros that define custom attributes usable on any item
 - Function-like macros
 
+
+#### if let  && match 
+    if let Some(x) = option {
+        res += x;
+    }
