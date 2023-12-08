@@ -1,8 +1,8 @@
-##### linked-list
+#### linked-list
 ``` C
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER) 
 ```
-##### DPDK中读取64位数，用union减少操作的方法
+#### DPDK中读取64位数，用union减少操作的方法
 
 ```c
 static inline uint64_t rte_rdtsc(void) { 
@@ -91,6 +91,56 @@ select 和 poll是早期实现，无法直接获取到就绪FD列表，只能遍
         
 - 3.5 epoll file descriptor 的问题
     进程持有一个打开FD列表， 指向kernel中的open-file-table（全局共享），再由该表指定文件INODE\OFFSET等。进程fork等可能导致epoll的监听出现epoll_ctl函数无法正常起作用的效果，根本原因在于epoll监视的是kernel中的open-file-table。
+
+#### Bloom filter
+
+- problem: false positive
+
+pseudocode code
+
+bloom_filter:   an N bit array, for our filter
+                inititialize as: 0 0 0 ....  0
+                            bit: 0 1 2 .... N-1
+
+Stream(m): data stream to be verify, each element is a type T, we have m element
+Hash(k): hash function set. we have k different hash functions, turning a type T into integer
+
+- Algo process:
+
+1) insert
+
+for elem_i in Stream<T>:
+    for i in Hash(k):
+        x = Hash_i(elem_i)
+        bloom_filter[x] = 1
+
+2) lookup
+
+input: data_i
+for i in Hash(k):
+    x = Hash_i(data_i)
+    if bloom_filter[x] != 1:
+        data_i is definitly not in the set!!!
+data_i maybe in the set!!!
+
+- Analyze:
+
+probability of false positive depends on density of 1's in the array
+
+number of 1's is approximate(must be lower): m * k
+
+consider a single bit of the filter, after all insert, the chance of remaining 0:
+(1 - 1/n)^(m*k)  = (1 - 1/n)^(n * (m * k / n))
+as n-> infi, (1 - 1/n)^n = e^-1, hince
+= e^(-(m * k) / n)
+
+Densiy of 1 = 1 - e^(-(m * k) / n)
+
+probability of false positive =
+(1 - e^(-(m * k) / n))^k
+
+- given n, m, the best k
+    k = (int) n / m * ln2
 
 #### CPP 中 #include<> 和 #include ""的区别
 
@@ -353,7 +403,9 @@ struct Swidget {
 ```
 
 #### lvalue && rvalue
-rvalues indicate objects eligible for move operations, while lvalues generally don’t
+- “l-value” refers to memory location which identifies an object, may appear as either left hand or right hand side of an assignment operator(=)
+- r-value” refers to an object that has no identifiable location in memory. A r-value is an expression, that can’t have a value assigned to it, which means r-value can appear on right but not on left hand side of an assignment operator(=). 
+- rvalues indicate objects eligible for move operations, while lvalues generally don’t
 a parameter of rvalue reference type, because the parameter itself is an lvalue
 
 parameters(形参) are lvalues, but the arguments（实参）

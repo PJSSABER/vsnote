@@ -1,3 +1,7 @@
+# fish 
+friendly user
+https://github.com/fish-shell/fish-shell
+
 # config in remote
 - viewing the temp file fish creates to see what port the webserver is bound to (I had 8000)
 - opening a second ssh session and tunneling the port to localhost. example:
