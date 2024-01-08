@@ -68,7 +68,7 @@ kubeadm token create --print-join-command
 # optional : 在node 节点 删除之前相关文件
 sudo kubeadm reset
 systemctl stop kubelet
-rm -rf /etc/kubernetes/*
+sudo rm -rf /etc/kubernetes/*
 
 # 重新加入集群， 复制master生成的token： <token>
 kubeadm join ×.×.×.×:6443 --token <token>

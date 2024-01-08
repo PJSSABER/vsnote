@@ -356,11 +356,11 @@ b->qux2();
 2. dynamic binding:
     例如 b->bar(), 会调用C::bar()，good，实际类型是C
     实现  
-    ![Vtable and Vptr](images/Vtable&Vptr.PNG)
-    a. Vtable
+    ![Vtable and Vptr](images/Vtable&Vptr.PNG)  
+    a. Vtable  
     For every class that contains virtual functions, the compiler constructs a virtual table, a.k.a vtable. The vtable contains an entry for each virtual function accessible by the class and stores a pointer to its definition.
 
-    b. Vptr
+    b. Vptr  
     Every time the compiler creates a vtable for a class, it adds an extra argument to it: a pointer to the corresponding virtual table, called the vpointer.
     vpointer is just another class member added by the compiler and increases the size of every object that has a vtable by sizeof(vpointer)
 #### extern关键字

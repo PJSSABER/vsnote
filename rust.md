@@ -1,4 +1,4 @@
-#### String \ &str \ literal
+# String \ &str \ literal
 ref to :https://doc.rust-lang.org/book/ch04-03-slices.html?highlight=string#string-slices
 ```Rust
 let s = String::from("hello world");  // String
@@ -28,19 +28,19 @@ println!("x = {}, y = {}", x, y);
 /* &String can be treat as a reference to a string slice (&str) because the String type implements the Deref trait to automatically coerce into a string slice when necessary.
 */
 ```
-#### move semantics and ownership
+# move semantics and ownership
 
-##### reference and borrowing
+## reference and borrowing
 A reference is like a pointer in that it’s an address we can follow to access the data stored at that address; that data is owned by some other variable. Unlike a pointer, a reference is guaranteed to point to a valid value of a particular type for the life of that reference.
 Mutable references have one big restriction: if you have a mutable reference to a value, you can have no other references to that value.
 no Dangling References
 
-#### partial move in match expression
+## partial move in match expression
 & denotes that your pattern expects a reference to an object. Hence & is a part of said pattern: &Foo matches different objects than Foo does.
 
 ref indicates that you want a reference to an unpacked value. It is not matched against: Foo(ref foo) matches the same objects as Foo(foo).
 
-#### trait Self self
+# trait Self self
 
 self: the instance of the implementing type on which the method is being called. It's similar to this in other programming languages.
 
@@ -76,7 +76,7 @@ pub fn notify(item: &impl Summary)
 fn some_function<T: Display + Clone, U: Clone + Debug>(t: &T, u: &U) -> i32 {
 return type: fn returns_summarizable() -> impl Summary
 
-#### lifetime
+# lifetime
 While lifetimes and scopes are often referred to together, they are not the same
 apostrophe
 using lifetimes requires generics
@@ -86,7 +86,7 @@ foo<'a>
 
 ```
 
-#### Box
+# Box
 What remains on the stack(also can be on heap) is the pointer to the heap data
 
  stack        heap
@@ -96,7 +96,7 @@ What remains on the stack(also can be on heap) is the pointer to the heap data
                 .
 
 
-#### closure
+# closure
 by default using borrow; (mutable if needed)
 
 why move?
@@ -117,14 +117,14 @@ fn main() {
 }
 ```
 
-#### concurrency
+# concurrency
 
 ```rust
 mpsc::channel();
 //built consumer-producer
 ```
 
-#### Macro
+# Macro
 exclamation mark : !
 writing code that writes other code: metaprogramming
 1. parameters changeble
@@ -137,7 +137,220 @@ Four series:
 - Function-like macros
 
 
-#### if let  && match 
+# if let  && match 
     if let Some(x) = option {
         res += x;
     }
+
+
+# memory layout
+
+word-size: depend on your system:
+- 64-bit : 8Byte
+- 32-bit : 4Byte
+
+## char
+UTF8 编码： 4Byte
+
+## reference  &T  and &mut T
+U64, machine word
+mut 也一样大
+
+## vector
+
+stack: 24Byte (8 * 3) 
+ref_to_data(word-size) | cap(word-size) | len(word-size)
+
+
+head: data
+
+## [T]  and  &[T]  
+
+  - [T]: slices, unkown size; can not be declared in stack; also called advanced-types
+
+  - &[T]: slices reference, a fat pointer {ref, len}
+
+## struct
+
+```rust
+struct Data; // not allocate
+
+struct Data(Vec<usize>);
+
+struct Data {
+    nums: Vec<usize>,
+    dimensions: (usize, usize),
+}
+```
+
+## enum
+using mini-byte to represent the largest one
+
+```rust
+
+enum HTTPStatus {
+    Ok,
+    NotFound,
+} // 1 byte for 1
+
+enum HTTPStatus {
+    Ok = 200,
+    NotFound = 404,
+}  // 2 byte for 404
+
+enum Data {
+    Empty,
+    Number(i32),
+    Array(Vec<i32>),
+}  // 32 Byte
+/*
+                         8        16       24         32         
+                |type|        data                    |
+Data::Empty     | 0  |                                |
+Data::Number    | 1  |   | i32 |                      |
+Data::Array     | 2  |pad|  ref   |   cap  |  length  |
+*/ 
+
+// an optimized way: using Box !!!
+enum Data {
+    Empty,
+    Number(i32),
+    Array(Box<Vec<i32>>),
+}  // 16 Byte
+/*
+                         8        16              
+             integertag    data
+Data::Empty     | 0 |            | 
+Data::Number    | 1 |   | i32 |  | 
+Data::Array     | 2 |pad|  ref   |  
+*/ 
+
+// can use a word-size to represent option<Box<T>>, since no dingling ptr is allowed !!
+```
+
+## trait object
+
+to get a trait object
+```rust
+// method 1:
+fn writer(w: &mut dyn Write) {
+    //...
+}
+
+// method 2:
+let mut buffer: Vec[u8] = vec![];
+let w: &mut dyn Write = &mut buffer;  
+```
+
+a trait object is "fat pointer"
+
+|  data pointer |   vtable pointer |
+so that's two word-size
+
+vtable: geneated at compile time, and used by all instance
+
+```rust
+
+// for box\rc:
+let mut buffer: Vec[u8] = vec![];
+let mut w: Box<dyn Write> = Box::new(buffer);  
+
+```
+## func
+
+```rust
+fn test_func() -> bool {}
+
+let f:fn() -> bool = test_func; // function pointer takes a word-size
+```
+## closures
+
+use struct to represent closures
+rust-compiler will determine 
+
+### FnOnce
+```rust
+
+fn create_closure() -> impl FnOnce() {
+    let name = String ::from("john");
+    || {
+        drop(name);
+    }
+}
+
+struct MyClosure {
+    name: String,
+}
+
+impl FnOnce for MyClosure {
+    fn call_once(self) {
+        drop(self.name)
+    }
+}
+// 只能被调用一次， 多次调用时， drop出错
+```
+
+### FnMut 
+applies to closures that don’t move captured values out of their body, but that might mutate the captured values
+
+```rust
+
+let mut i: i32 = 0;
+let mut f = || {   // note here must be mut !!!
+    i += 1;
+};    
+
+struct MyClosure {
+    i: &mut i32,
+}
+
+impl FnMut for MyClosure {
+    fn call_once(&mut self) {
+        *self.i += 1;
+    }
+}
+
+```
+### Fn
+
+```rust
+
+let msg = String::from("hello");
+let my_print = || {
+    println!("{}", msg);
+};    
+
+struct MyClosure {
+    i: &String,
+}
+
+impl Fn for MyClosure {
+    fn call(&self) {
+        println!("{}", self.msg);
+    }
+}
+
+```
+
+#### move
+
+```rust
+fn create_closure() -> impl Fn() {
+    let msg = String::from("hello");
+    move || {                                        //  必须有move，保证使用该closure时，对msg的引用不是非法的引用
+        println!("{}", msg);
+    }
+}
+   
+
+struct MyClosure {
+    i: String,          // 有 move, 固有所有权
+}
+
+impl Fn for MyClosure {
+    fn call(&self) {
+        println!("{}", self.msg);
+    }
+}
+
+```
