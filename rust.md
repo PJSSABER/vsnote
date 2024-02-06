@@ -85,6 +85,7 @@ foo<'a>
 // `foo` has a lifetime parameter `'a`; this lifetime syntax indicates that the lifetime of foo may not exceed that of 'a
 
 ```
+!! add lifetimes only in function and type signatures
 
 # Box
 What remains on the stack(also can be on heap) is the pointer to the heap data
@@ -142,6 +143,10 @@ Four series:
         res += x;
     }
 
+
+# std.out when cargo test 
+
+cargo test -- --nocapture
 
 # memory layout
 
@@ -352,5 +357,31 @@ impl Fn for MyClosure {
         println!("{}", self.msg);
     }
 }
+
+```
+
+# Creating iter in Rust
+
+```rust
+// Iterator defination
+
+pub trait Iterator {
+    type Item;
+    fn next(&mut self) -> Option<Self::Item>;
+}
+
+/*
+    type Item: a place-holder for others who implement this trait to define own type
+    Self::Item:  Self::Item means "the type Item associated with the implementing type (Self)"
+*/
+
+impl Iterator for MyStruct {
+    type Item = i32;
+    fn next(&mut self) -> Option<Self::Item>;
+}
+
+// Tuple structs are an alternative form of struct,
+// useful for trivial wrappers around other types.
+pub struct IntoIter<T>(List<T>);
 
 ```

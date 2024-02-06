@@ -76,3 +76,8 @@ ulimit -c
 
 sudo cpupower frequency-set -u 2.0GHz  
 sudo cpupower frequency-set -d 2.0GHz 
+
+
+###
+dmidecode
+

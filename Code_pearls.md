@@ -169,6 +169,26 @@ reference：https://gcc.gnu.org/onlinedocs/cpp/Search-Path.html
     export CPLUS_INCLUDE_PATH=XXX:$CPLUS_INCLUDE_PATH
   -  系统默认标准库目录 (如果使用 include <>, 则只会搜索这里)
 
+#### ldd 的输出
+
+用于显示链接文件的动态库位置
+``` bash 
+ldd `which ls`
+        linux-vdso.so.1 (0x00007fffd7cf7000)
+        libselinux.so.1 => /lib/x86_64-linux-gnu/libselinux.so.1 (0x00007fbc41220000)
+        libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007fbc40e20000)
+        libpcre.so.3 => /lib/x86_64-linux-gnu/libpcre.so.3 (0x00007fbc40ba0000)
+        libdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00007fbc40990000)
+        /lib64/ld-linux-x86-64.so.2 (0x00007fbc41800000)
+        libpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00007fbc40770000)
+```
+
+输出中，  =>  代表着动态库的位置
+
+特别的，
+- vdso : 用户态调用内核内容
+- /lib64/ld-linux-x86-64.so.2： 链接器，运行时搜索链接路径寻找其它库，本身则是硬编码了位置
+
 
 #### placement new
 

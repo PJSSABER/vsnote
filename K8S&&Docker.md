@@ -134,3 +134,37 @@ Sets the PID mode to the host PID mode. This turns on sharing between container 
 -  build cache: docker buildx prune -f
 -  network: docker network prune -f
 -  all: docker system prune 
+
+
+# inside container
+
+## namespace
+
+setns
+
+process
+mount
+network
+
+## chroot
+
+change root to a filesystem docker images containered. So that the scope is different to the container
+隔离文件系统
+
+隔离pid unshare
+
+mount 隔离  需要重新设置根目录mount point的propagation type/proc
+
+## cgroup
+
+resources
+
+mem
+cpu
+IO
+
+cgroup.procs
+创建一个 /sys/fs/cgroup/**创建一个新的group
+
+assign to a proc:
+cgroup.procs
