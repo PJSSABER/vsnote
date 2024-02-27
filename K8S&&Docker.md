@@ -140,20 +140,24 @@ Sets the PID mode to the host PID mode. This turns on sharing between container 
 
 ## namespace
 
-setns
+namespace也有不同的类别[4]，从mount到pid再到网络等等，uts也是其中之一。不同的namespace类别负责限制进程在“某一方面”都能看到什么。根据不同的需求，这个“某一方面”可以是主机名（比如上面我们隔离的hostname），也可以是挂载或者pid等等。
 
-process
-mount
-network
+最直观也是最早引入内核的是mount namespace[5]，用于实现挂载方面的隔离。把不同进程放在不同的mount namespace中，这样一来你在一个mount namespace中进行的挂载操作，其他mount namespace中的进程看不到，以此实现挂载方面的隔离。
 
-## chroot
+系统启动时，会创建一个global initial mount namespace，所有进程都在其中[5]。当某个进程主动要求创建一个新的mount namespace时，它和它的子进程就都会放到这个新的mount namespace中，实现隔离，同时可以想象到，这些不同的mount namespace之间也会像进程的父子层级关系一样，形成自己的层级关系并由kernel负责维护。
+
+### 隔离文件系统 chroot
 
 change root to a filesystem docker images containered. So that the scope is different to the container
-隔离文件系统
 
+### process
 隔离pid unshare
+unshare(CLONE_NEWPID)
 
+### mount 
 mount 隔离  需要重新设置根目录mount point的propagation type/proc
+
+### network
 
 ## cgroup
 

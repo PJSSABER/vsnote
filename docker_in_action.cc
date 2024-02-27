@@ -65,9 +65,9 @@ static string cmd(int argc, char **argv) {
 static void run_child(int argc, char **argv) {
     cout << "Child running " << cmd(argc, argv) << " as " << getpid() << endl;    
 
-    int flags = CLONE_NEWUTS | CLONE_NEWNS;
+    int flags = CLONE_NEWUTS | CLONE_NEWNS;  // UTS起到的作用是，显示主机名（hostname）
 
-    if (unshare(flags) < 0) {
+    if (unshare(flags) < 0) {    // uUnshares the indicated namespaces from the parent process and then executes the specified program
         cerr << "Fail to unshare in child" << endl;
         exit(-1);
     }
@@ -77,7 +77,7 @@ static void run_child(int argc, char **argv) {
         exit(-1);
     } 
 
-    if (chroot("../ubuntu-fs") < 0) {
+    if (chroot("../ubuntu-fs") < 0) { //修改当前进程及后续子进程眼中的根目录，让后续的absolute path文件访问全都从这个新的根目录开始
         cerr << "Fail to chroot" << endl;
         exit(-1);
     }
