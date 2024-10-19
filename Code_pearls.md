@@ -1,8 +1,8 @@
-#### linked-list
+# linked-list
 ``` C
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER) 
 ```
-#### DPDK中读取64位数，用union减少操作的方法
+# DPDK中读取64位数，用union减少操作的方法
 
 ```c
 static inline uint64_t rte_rdtsc(void) { 
@@ -13,7 +13,7 @@ asm volatile("rdtsc" : "=a" (tsc.lo_32), "=d" (tsc.hi_32)); return tsc.tsc_64;
 }
 ```
 
-#### Epoll and it's usage
+# Epoll and it's usage
 - 5 种网络IO模型
     ![IO.png](/images/IO.png)
 - IO多路复用 select && poll
@@ -56,13 +56,15 @@ select 和 poll是早期实现，无法直接获取到就绪FD列表，只能遍
     int epoll_ctl(int epfd, //epoll 实例FD
     int op, // 执行操作，EPOLL_CTL_ADD\EPOLL_CTL_DEL\EPOLL_CTL_MOD
     int fd, // 监听的对象fd
-    struct epoll_event __user *event // 监听的事件类型：read\write\except)
+    struct epoll_event __user *event // 监听的事件类型：read\write\except
+    )
 
     // 检查
     int epoll_wait(int epfd,  // epoll 实例FD
     struct epoll_event __user *events, // 用于存储就绪fd, 并返回给user_space
     int maxevents, // events数组的最大大小
-    int timeout // 超时时间)
+    int timeout // 超时时间
+    )
     ```
     解决了poll\select的问题：  
     1） 无监听上限  
@@ -92,7 +94,38 @@ select 和 poll是早期实现，无法直接获取到就绪FD列表，只能遍
 - 3.5 epoll file descriptor 的问题
     进程持有一个打开FD列表， 指向kernel中的open-file-table（全局共享），再由该表指定文件INODE\OFFSET等。进程fork等可能导致epoll的监听出现epoll_ctl函数无法正常起作用的效果，根本原因在于epoll监视的是kernel中的open-file-table。
 
-#### Bloom filter
+# IO_URING
+
+ It is important to remember that I/O requests submitted to
+              the kernel can complete in any order.  It is not necessary
+              for the kernel to process one request after another, in
+              the order you placed them.
+
+
+When
+              you dequeue CQEs off the CQ, you should always check which
+              submitted request it corresponds to.  The most common
+              method for doing so is utilizing the user_data field in
+              the request, which is passed back on the completion side.
+
+## data-structure
+
+IOSQE_IO_DRAIN: 等待前一个IO完成后才执行下一个IO，执行Fsync
+
+IOSQE_IO_LINK: Continue until set do this sqe IFF previous succeed
+
+
+
+
+IORING_SETUP_IOPOLL: use a kworker to poll submission queue
+
+io_uring_register: reduce get_user_pages put_pages
+
+io_uring_enter
+
+io_uring_setup
+
+# Bloom filter
 
 - problem: false positive
 
@@ -142,7 +175,7 @@ probability of false positive =
 - given n, m, the best k
     k = (int) n / m * ln2
 
-#### CPP 中 #include<> 和 #include ""的区别
+# CPP 中 #include<> 和 #include ""的区别
 
 reference：https://gcc.gnu.org/onlinedocs/cpp/Search-Path.html
 #include <>: 默认操作是只在标准库中搜索
@@ -150,7 +183,7 @@ reference：https://gcc.gnu.org/onlinedocs/cpp/Search-Path.html
 使用gcc编译时， 可以使用 -I 参数增加搜索地址
 查看当前的默认搜索地址， 使用命令
 `cpp -v /dev/null -o /dev/null`
-#### 查看修改 默认 include 路径
+# 查看修改 默认 include 路径
 
 - 查看默认路径
 #gcc
@@ -169,7 +202,7 @@ reference：https://gcc.gnu.org/onlinedocs/cpp/Search-Path.html
     export CPLUS_INCLUDE_PATH=XXX:$CPLUS_INCLUDE_PATH
   -  系统默认标准库目录 (如果使用 include <>, 则只会搜索这里)
 
-#### ldd 的输出
+# ldd 的输出
 
 用于显示链接文件的动态库位置
 ``` bash 
@@ -190,7 +223,7 @@ ldd `which ls`
 - /lib64/ld-linux-x86-64.so.2： 链接器，运行时搜索链接路径寻找其它库，本身则是硬编码了位置
 
 
-#### placement new
+# placement new
 
 new operator/delete operator就是new和delete操作符，而operator new/operator delete是函数
 
@@ -207,7 +240,7 @@ new operator/delete operator就是new和delete操作符，而operator new/operat
     delete []buf; // 用 delete operator 删除  buf
     ```
     
-####  hugepages
+#  hugepages
 https://www.hudsonrivertrading.com/hrtbeat/low-latency-optimization-part-1/  
 https://docs.kernel.org/admin-guide/kernel-per-CPU-kthreads.html  
 https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_for_real_time/8/html-single/optimizing_rhel_8_for_real_time_for_low_latency_operation/index#proc_reducing-cpu-performance-spikes_optimizing-RHEL8-for-real-time-for-low-latency-operation  
@@ -222,7 +255,7 @@ Usage of hugepages:
 
 2. Using pseudo file-system hugetlbfs: hugetlbfs uses a specific pool of huge pages
 
-#### RAII : Resource Acquisition Is Initialization 
+# RAII : Resource Acquisition Is Initialization 
 binds the life cycle of a resource that must be acquired before use (allocated heap memory, thread of execution, open socket, open file, locked mutex, disk space, database connection—anything that exists in limited supply) to the lifetime of an object
 1. 将指针封装到类对象中，构造函数获取资源，并创建类实例，可以抛出异常；析构函数释放资源
 2. 总是使用临时变量（某个函数内部，某个循环内部，栈内等）获取资源，这样资源的生命周期和临时变量的生命周期一样，当临时变量释放的时候，编译器会自动调用其析构函数，释放所持资源，而不需要手动释放。
@@ -299,7 +332,7 @@ void good()
     }
 ```
 
-#### Smart pointers in C++
+# Smart pointers in C++
 1. unique_ptr
    - container for a raw pointer, explicitly prevents copying of its contained pointer
    - A unique_ptr cannot be copied because its copy constructor and assignment operators are explicitly deleted
@@ -329,7 +362,7 @@ void good()
             // p2 is destroyed. Memory is owned by p1.
         ```
 
-#### dynamic binding C++ class: virtual function
+# dynamic binding C++ class: virtual function
 ```C++
 //example
 class B
@@ -383,7 +416,12 @@ b->qux2();
     b. Vptr  
     Every time the compiler creates a vtable for a class, it adds an extra argument to it: a pointer to the corresponding virtual table, called the vpointer.
     vpointer is just another class member added by the compiler and increases the size of every object that has a vtable by sizeof(vpointer)
-#### extern关键字
+# extern关键字
+
+
+Use extern to declare functions or variables defined in another file when you don't have or want to use a header file.
+It's best practice to declare such functions or variables in a header file and include that header file where needed.
+
 ```C++
 // 申明， 在链接中被定义为弱符号 建立存储空间的声明称之为“定义”，不需要建立存储空间的声明称之为“声明”。
 void int get sum();
@@ -422,7 +460,7 @@ struct Swidget {
 */
 ```
 
-#### lvalue && rvalue
+# lvalue && rvalue
 - “l-value” refers to memory location which identifies an object, may appear as either left hand or right hand side of an assignment operator(=)
 - r-value” refers to an object that has no identifiable location in memory. A r-value is an expression, that can’t have a value assigned to it, which means r-value can appear on right but not on left hand side of an assignment operator(=). 
 - rvalues indicate objects eligible for move operations, while lvalues generally don’t
@@ -434,7 +472,7 @@ with which they are initialized may be rvalues or lvalues
 Function objects created through lambda expressions are known as closures
 
 
-#### function point type
+# function point type
 The signature void *(*)(void *) in C represents a pointer to a function that takes a single argument of type void * and returns a void *.
 
 Here's a breakdown of what each part of the signature means:
@@ -444,3 +482,56 @@ void *: This is the return type of the function. It indicates that the function 
 (*): This part of the signature indicates that we are dealing with a function pointer.
 
 (void *): Inside the parentheses, void * represents the parameter type of the function. It indicates that the function takes a single argument, which is a pointer to an unspecified type.
+
+
+# sss
+
+
+
+```cpp
+
+typedef union epoll_data
+{
+  void *ptr;
+  int fd;
+  uint32_t u32;
+  uint64_t u64;
+} epoll_data_t;
+
+struct epoll_event
+{
+  uint32_t events;      /* Epoll events */
+  epoll_data_t data;    /* User data variable */
+} 
+
+```
+
+
+GETITIMER(2)                                                        Linux Programmer's Manual                                                        GETITIMER(2)
+
+NAME
+       getitimer, setitimer - get or set value of an interval timer
+
+SYNOPSIS
+       #include <sys/time.h>
+
+       int getitimer(int which, struct itimerval *curr_value);
+       int setitimer(int which, const struct itimerval *new_value,
+                     struct itimerval *old_value);
+
+DESCRIPTION
+       These  system  calls  provide  access  to  interval timers, that is, timers that initially expire at some point in the future, and (optionally) at regular
+       intervals after that.  When a timer expires, a signal is generated for the calling process, and the timer is reset  to  the  specified  interval  (if  the
+       interval is nonzero).
+
+
+
+If either field in new_value.it_value is nonzero, then the timer is armed to initially expire at the  speci‐
+       fied time.  If both fields in new_value.it_value are zero, then the timer is disarmed.
+
+       The new_value.it_interval field specifies the new interval for the timer; if both of its subfields are zero,
+       the timer is single-shot.
+
+
+
+

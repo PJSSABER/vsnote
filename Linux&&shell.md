@@ -47,6 +47,30 @@ CPU 执行流程
 - metric_branch mispredict ratio 分支预测失误
 - INST_RETIRED.ANY retire的instruction(即最终成功执行的instruction) Pathlength = INST_RETIRED.ANY*execution_time/3600
     
+## TMA 分析
+
+Top-down Microarchitecture Analysis (TMA) Method 
+结合Emon/VTUNE, 从顶置下的进行分析
+
+- TMA 分层， 可能根据 metric_TMA_Metrics_Version 的不同而改变，但主体基本一致
+
+- CPU Bound = FrontendBound(取指) + BadSpeculation(预测错误&重装指令) + Retiring(正确执行消耗) + BackendBound(内存读写 & core调度)
+
+
+## IO die 与 compute die
+1. IO Die Frequency (Uncore Frequency):
+The IO Die (input/output die) typically includes components like memory controllers, PCIe controllers, and other IO interfaces.
+Its frequency would generally be considered part of the uncore frequency because it handles functions outside of the direct computation performed by the CPU cores.
+The uncore frequency impacts how quickly data can be moved between the CPU cores and external components (like memory and peripherals). So, a higher IO die frequency can improve the performance of memory access, IO operations, and communication with other devices.
+2. Compute Die Frequency (Core Frequency):
+The compute die contains the actual CPU cores that execute instructions.
+Its frequency is directly related to the core frequency, which governs the speed at which the cores execute tasks.
+This frequency affects how fast the processor can carry out computations, like processing a loop, running an algorithm, or performing calculations.
+In a multi-die architecture like AMD’s EPYC processors or some Intel chips, these distinctions become more pronounced:
+
+Compute die focuses on computation and the core frequency defines how quickly the CPU can perform those calculations.
+IO die focuses on interfacing with external devices and memory, and its speed is tied to the uncore frequency.
+Understanding this separation helps in fine-tuning performance for workloads that are either compute-bound (requiring higher core frequency) or memory/IO-bound (benefiting from a higher uncore frequency).
 
 # Useful Linux
 - 检查打开文件、端口
@@ -91,6 +115,8 @@ CPU 执行流程
     cpupower frequency-set -u 3.4GHz  
     cpupower frequency-set -d 3.4GHz 
     cpupower frequency-info
+    cpupower idle-set -D 3 // disable C3 and Higer
+
     ```
 
 - 设置大页内存与清理缓存
@@ -118,6 +144,7 @@ ulimit -c
 ```shell
     sar -m CPU -P <core> 1 1000  # 指定core的频率抓取
     sar -P 0 1 100  # 指定core的cpu使用率抓取
+    sar -P ALL 1 100  # 指定core的cpu使用率抓取
     sar -u 1 600 > CPU_UTIL & # 全核使用率
     sar -m CPU -u 1 600 > CPU_FREQ &  # 指全核频率
 ```
@@ -126,3 +153,54 @@ ulimit -c
 
 sudo cpupower frequency-set -u 2.0GHz  
 sudo cpupower frequency-set -d 2.0GHz 
+
+# << && <<<
+
+## << 
+here document, allows you to provide a block of text to a command, treating the block as if it were coming from a file or standard input
+
+```shell
+command << EOF
+line1
+line2
+line3
+EOF
+```
+
+## <<< 
+here string, allows you to pass a string directly to a command as standard input
+
+```shell
+grep "pattern" <<< "search this string for the pattern"
+```
+
+##
+if what's inside there is a carriage and return, should use << to treat as a doc.
+
+# 检查是否为file文件
+
+```shell
+
+#### -d
+if [ -e "path/to/target" ] && [ ! -d "path/to/target" ]; then
+  echo "It is a file"
+else
+  echo "It is not a file"
+fi
+
+#### stat 查看 metadata
+if stat --printf="%F\n" "path/to/target" | grep -q "regular file"; then
+  echo "It is a file"
+else
+  echo "It is not a file"
+fi
+
+#### file
+if file "path/to/target" | grep -q "regular file"; then
+  echo "It is a file"
+else
+  echo "It is not a file"
+fi
+```
+
+
