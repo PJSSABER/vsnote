@@ -434,7 +434,7 @@ struct Swidget;
 // 定义，链接中被视作强符号，重定义将导致错误！
 int a;
 int a = 0;
-extern int a = 0;  // 与上一条语句同样作用 申明一个可外部调用的全局变量
+extern int a = 0;  // 与上一条语句同样作用 定义一个可外部调用的全局变量
 
 void int get sum() {
     return；
@@ -466,11 +466,187 @@ struct Swidget {
 - rvalues indicate objects eligible for move operations, while lvalues generally don’t
 a parameter of rvalue reference type, because the parameter itself is an lvalue
 
-parameters(形参) are lvalues, but the arguments（实参）
-with which they are initialized may be rvalues or lvalues
+parameters(形参) are lvalues, but the arguments（实参）with which they are initialized may be rvalues or lvalues
 
 Function objects created through lambda expressions are known as closures
 
+## move 移动语义
+类似RUST所有权的概念，移交所有权而不进行拷贝。
+```cpp
+  class MyClass {
+    public:
+        MyClass(const std::string& s)
+            : str{ s }
+        {};
+    // 假设已经实现了移动语义
+    private:
+        std::string str;
+};
+       std::vector<MyClass> myClasses;
+       MyClass tmp{ "hello" };
+       myClasses.push_back(tmp);    // 拷贝， tmp中数据拷贝给容器中元素， tmp还可以使用
+       myClasses.push_back(std::move(tmp));  // 看这里，没有发生拷贝，性能提升 tmp不能正常使用
+
+
+//// 右值匹配
+
+int val{ 0 };
+int&& rRef0{ getTempValue() };  // OK，引用临时对象
+int&& rRef1{ val };  // Error，不能引用左值
+int&& rRef2{ std::move(val) };  // OK，引用使用std::move标记的非const对象
+```
+### 区分拷贝与移动
+移动操作执行的是对象数据的转移，那么它一定是与拷贝操作不一样的。因此，为了能够将拷贝操作与移动操作区分执行，就需要用到我们上一节的主题：左值引用与右值引用。
+因此，对于容器的push_back函数来说，它一定针对拷贝操作和移动操作有不同的重载实现，而重载用到的即是左值引用与右值引用
+
+```cpp
+class vector
+{
+public:
+    void push_back(const MyClass& value) // const MyClass& 左值引用
+    {
+        // 执行拷贝操作
+    }
+    void push_back(MyClass&& value) // MyClass&& 右值引用
+    {
+        // 执行移动操作
+    }
+};
+
+/*
+我们知道std::vector是模板类，可以用于任意类型。所以，std::vector不可能自己去实现拷贝操作或移动操作，因为它不知道自己会用在哪些类型上。因此，std::vector真正做的，是委托具体类型自己去执行拷贝操作与移动操作。
+*/
+
+class MyClass
+{
+public:
+    // 移动构造函数
+    MyClass(MyClass&& rValue) noexcept  // 关于noexcept我们稍后会介绍
+        : str{ std::move(rValue.str) }  // 看这里，调用std::string类型的移动构造函数
+    {}
+    MyClass(const std::string& s)
+        : str{ s }
+    {}
+private:
+    std::string str;
+};
+```
+
+### move具体做了些什么
+```cpp
+class MyClass
+{
+public:
+MyClass()
+    : val{ 998 }
+    {
+    name = new char[] { "Peter" };
+    }
+// 实现移动构造函数
+MyClass(MyClass&& rValue) noexcept
+    : val{ std::move(rValue.val) }  // 转移数据
+    {
+    rValue.val = 0;  // 清除被转移对象的数据
+    name = rValue.name;  // 转移数据
+    rValue.name = nullptr;  // 清除被转移对象的数据
+    }
+    ~MyClass()
+    {
+    if (nullptr != name)
+    {
+    delete[] name;
+        name = nullptr;
+    }
+    }
+private:
+int val;
+char* name;
+};
+MyClass A{};
+MyClass B{ std::move(A) };  // 通过移动构造函数创建新对象B
+```
+
+1. 移动对象，而非拷贝
+2. 将原有对象数据清除，避免产生多个对象共享数据的问题
+3. C++在其文档中表明，所有标准库中的对象，当被移动之后，会处于一个“有效但未定义的状态（valid but unspecified state）”， 保证被移动对象能够被正确的析构，如这里我们的析构函数考虑了name可能是一个nullptr
+
+### 移动构造函数和移动赋值函数的生成规则
+在C++11之前，我们拥有4个特殊成员函数由编译器默认生成，即构造函数、析构函数、拷贝构造函数以及拷贝赋值运算符。从C++11开始，我们多了2个特殊成员函数，即移动构造函数和移动赋值运算符
+
+大该生成模式如下
+```cpp
+ class MyClass
+       {
+       public:
+        MyClass()
+           : val{ 998 }
+         {
+           name = new char[] { "Peter" };
+         }
+        MyClass(MyClass&& rValue) noexcept
+           : val{ std::move(rValue.val) }
+         {
+           rValue.val = 0;
+           name = rValue.name;
+           rValue.name = nullptr;
+         }
+        // 移动赋值运算符
+         MyClass& operator=(MyClass&& myClass) noexcept
+         {
+           val = myClass.val;
+           myClass.val = 0;
+           name = myClass.name;
+           myClass.name = nullptr;
+          return *this;
+         }
+         ~MyClass()
+         {
+          if (nullptr != name)
+           {
+            delete[] name;
+             name = nullptr;
+           }
+         }
+       private:
+        int val;
+        char* name;
+       };
+       MyClass A{};
+       MyClass B{};
+       B = std::move(A);  // 使用移动赋值运算符将对象A赋值给对象B
+```
+- 缺省情况下，6个特殊函数编译器都会自动生成
+- 在特定情况下，编译器会将移动构造函数和移动赋值运算符定义为deleted
+- 在类中定义了拷贝构造函数或者拷贝赋值运算符，那么编译器就不会自动生成移动构造函数和移动赋值运算符。此时，如果调用移动语义的话，由于编译器没有自动生成，因此会转而执行拷贝操作
+- 析构函数的情况和定义拷贝操作一致，如果我们在类中定义了析构函数，那么编译器也不会自动生成移动构造函数和移动赋值运算符。此时，如果调用移动语义的话，同样会转而执行拷贝操作
+- 析构函数有一点值得注意，许多情况下，当一个类需要作为基类时，都需要声明一个virtual析构函数，此时需要特别留意是不是应该手动的为该类定义移动构造函数以及移动赋值运算符。此外，当子类派生时，如果子类没有实现自己的析构函数，那么将不会影响移动构造函数以及移动赋值运算符的自动生成
+- 如果我们在类中定义了移动构造函数，那么编译器就不会为我们自动生成移动赋值运算符。反之，如果我们在类中定义了移动赋值运算符，那么编译器也不会为我们自动生成移动构造函数
+- 定义了移动构造函数，那么编译器不会为我们自动生成移动赋值运算符，此时，移动赋值运算符的调用并不会转而执行拷贝赋值运算符，而是会产生编译错误。因为其被标记未 =delete, 吊用将导致错误
+
+### noexcept
+- “强异常保证（strong exception guarantee）”。所谓强异常保证，即当我们调用一个函数时，如果发生了异常，那么应用程序的状态能够回滚到函数调用之前
+- noexcept说明符是我们对于不会抛出异常的保证，如果在执行的过程中有异常被抛出了，应用程序将会直接终止执行
+
+### NRVO（named return value optimization，命名返回值优化）
+避免过度使用std::move()
+```cpp
+ class MyClass
+       {};
+       MyClass GetTemporary()
+       {
+           MyClass A{};
+          return A;
+       }
+       MyClass myClass = GetTemporary();  // 注意这里
+```
+在上面的例子中，GetTemporary函数会创建一个临时的MyClass对象A，接着在函数结束时返回。在没有NRVO的情况下，当执行语句MyClass myClass=GetTemporary()；时，会调用MyClass类的拷贝构造函数，通过对象A来拷贝创建myClass对象。因此，整个流程如图所示：
+          ![nrvo_1.png](/images/move_nrvo_1.png)  
+我们可以发现，在创建完myClass对象之后，对象A就被销毁了，这无疑是一种浪费。因此，编译器会启用NRVO，直接让myClass对象使用对象A。这样一来，在整个过程中，我们只有一次创建对象A时构造函数的调用开销，省去了拷贝构造函数以及析构函数的调用开销：
+          ![nrvo_2.png](/images/move_nrvo_2.png)  
+
+- 为什么不使用std::move? MyClass类型没有实现移动语义，当我们执行语句MyClass myClass=GetTemporary()；时，编译器没有办法调用移动构造函数来创建myClass对象。同时，遗憾的是，由于std::move(A)返回的类型是MyClass&&，与函数的返回类型MyClass不一致，因此编译器也不会使用NRVO。最终，编译器只能调用拷贝构造函数来创建myClass对象。
+- 
+当返回局部对象时，我们不用画蛇添足，直接返回对象即可，编译器会优先使用最佳的NRVO，在没有NRVO的情况下，会尝试执行移动构造函数，最后才是开销最大的拷贝构造函数。
 
 # function point type
 The signature void *(*)(void *) in C represents a pointer to a function that takes a single argument of type void * and returns a void *.
@@ -485,8 +661,6 @@ void *: This is the return type of the function. It indicates that the function 
 
 
 # sss
-
-
 
 ```cpp
 
@@ -532,6 +706,71 @@ If either field in new_value.it_value is nonzero, then the timer is armed to ini
        The new_value.it_interval field specifies the new interval for the timer; if both of its subfields are zero,
        the timer is single-shot.
 
+# epoll edge level
+```C
+// Level-Triggered Mode (LT)
+// In level-triggered (LT) mode, epoll will keep notifying you as long as a file descriptor remains in a readable or writable state. For example:
 
+// If a file descriptor (FD) is ready to read, epoll keeps informing you each time you call epoll_wait, as long as the FD has data to be read.
+// If an FD is writable, epoll will keep notifying you as long as the FD remains writable (until it is blocked or no more space in the buffer).
+// Blocking I/O in Level-Triggered Mode
+// If you are using blocking I/O in LT mode:
 
+// The read or write operation could block, but epoll will continue notifying you that this FD is ready in subsequent calls to epoll_wait as long as the state persists. So, the application will eventually continue processing once the blocking operation completes or more data arrives.
+// However, relying on blocking I/O in level-triggered mode is not ideal, as you may end up stalling other parts of your program while waiting for I/O.
+// Edge-Triggered Mode (ET)
+// In edge-triggered (ET) mode, the behavior changes fundamentally:
+
+// epoll notifies you only once when a change occurs on a file descriptor (e.g., it becomes readable or writable). After that, it assumes you have handled everything until the state changes again (e.g., more data arrives or buffer space becomes available).
+// This means if you don't drain all the data (or fill the buffer if writing) during that notification, epoll won't notify you again until the state changes again.
+// Blocking I/O in Edge-Triggered Mode
+// Now, let's explore why blocking I/O in ET mode is problematic:
+
+// Single Notification: When you receive an event in ET mode, you get notified only once per state change. For example:
+// If a socket becomes readable, epoll sends a single notification and then expects you to read all available data. If you don’t, and the socket remains in the same state (still readable), epoll won’t notify you again until new data arrives.
+// Potential Deadlock/Starvation: Suppose you try to use blocking I/O in ET mode:
+// If you attempt a blocking read, and you haven’t drained all the available data, the read may block indefinitely waiting for more data to be sent by the peer.
+// But because you won’t receive a new notification from epoll, your application might enter a deadlock where it’s blocked waiting for data, and epoll won’t notify you again unless a state change occurs.
+// Missed Notifications: Blocking calls in ET mode risk missing new events. If your read call blocks (because it tries to read more data than available), your program won’t be able to return to the event loop to handle new notifications on other file descriptors. The same applies to write operations that may block waiting for the buffer to become available.
+// Example to Illustrate the Problem
+// Blocking I/O in Level-Triggered Mode (LT)
+
+复制代码
+// Hypothetical blocking read in LT mode
+for (;;) {
+    int n = epoll_wait(epoll_fd, events, max_events, -1);
+    for (int i = 0; i < n; i++) {
+        if (events[i].events & EPOLLIN) {
+            char buf[1024];
+            // Blocking read
+            int bytes = read(events[i].data.fd, buf, sizeof(buf)); 
+            // It could block here, but epoll will keep notifying us as long as there is data
+        }
+    }
+}
+// In this case, even if the read call blocks, epoll_wait will continue to notify you on subsequent calls as long as there’s data on the file descriptor.
+
+// Blocking I/O in Edge-Triggered Mode (ET)
+
+复制代码
+// Hypothetical blocking read in ET mode
+for (;;) {
+    int n = epoll_wait(epoll_fd, events, max_events, -1);
+    for (int i = 0; i < n; i++) {
+        if (events[i].events & EPOLLIN) {
+            char buf[1024];
+            // Attempting a blocking read in ET mode
+            int bytes = read(events[i].data.fd, buf, sizeof(buf));
+            // If this read blocks, no further notifications will arrive for this FD
+        }
+    }
+}
+// In this ET example, if the read call blocks because not all data was read, you will not get notified again until a state change occurs on the file descriptor. This can leave your program waiting indefinitely.
+
+// Summary of Key Points
+// Level-Triggered Mode repeatedly informs you about the state of file descriptors, so blocking I/O can work, but it’s inefficient and not ideal due to potential stalls.
+// Edge-Triggered Mode only notifies you once, so if you don’t handle everything immediately or your I/O call blocks, you won’t receive further notifications, risking deadlocks or missed events.
+// Non-blocking I/O works better with both modes but is required with edge-triggered mode to prevent stalls and to handle events promptly.
+// In conclusion, edge-triggered epoll needs non-blocking I/O to ensure that your application processes all available data without risking indefinite blocking. Level-triggered epoll can tolerate blocking I/O better, but even then, it’s not recommended for high-performance, responsive applications.
+```
 

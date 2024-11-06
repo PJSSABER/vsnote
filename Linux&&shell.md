@@ -2,6 +2,7 @@
 直接工作在硬件层上的一层很薄的Driver ->  在workload 运行时，监测cpu上各个counter 的数据 -> 汇总出excel报告
 Emon 通过读取CPU内部的Monitor来获取当前CPU的性能参数，因此emon对性能的影响很小。
 
+适用于超标量计算机
 ## 关键概念
 - Performance counter
 Hardware register used to count a performance event 计数的硬件
@@ -54,7 +55,21 @@ Top-down Microarchitecture Analysis (TMA) Method
 
 - TMA 分层， 可能根据 metric_TMA_Metrics_Version 的不同而改变，但主体基本一致
 
-- CPU Bound = FrontendBound(取指) + BadSpeculation(预测错误&重装指令) + Retiring(正确执行消耗) + BackendBound(内存读写 & core调度)
+- 如何分层？
+  - uops allocate ?
+    - yes， 是否正确执行 uop retire？
+      - yes, retiring
+      - no bad specculation
+    - no, backend stalled, lack of load buffer?
+      - yes backend bound
+      - no frontend bound
+- CPU Bound = FrontendBound(取指，指令翻译为uops) + BadSpeculation(预测错误&重装指令) + Retiring(正确执行消耗) + BackendBound(指令调度 & 执行 & core调度)
+
+
+- 很高的Retire占比也有可以优化的空间，例如很多FP占比过高. Since FP(float operation) performance is of special interest in HPC land, we further breakdown the base retiring category into FP Arithmetic with Scalar and Vector operations distinction
+
+- Core Bound issues often can be mitigated with better code generation. E.g., a sequence of dependent arithmetic operations would be classified as Core Bound(类似我们做循环展开). A compiler may relieve that with better instruction scheduling. Vectorization can mitigate Core Bound issues as well.
+
 
 
 ## IO die 与 compute die
