@@ -96,7 +96,194 @@ select 和 poll是早期实现，无法直接获取到就绪FD列表，只能遍
 
 # IO_URING
 
- It is important to remember that I/O requests submitted to
+HOW TO USE
+## io_uring.h
+
+### read\write barrier
+
+read_barrier(): Ensure previous writes are visible before doing subsequent memory reads.
+
+write_barrier(): Order this write after previous writes
+
+Memory Order是用来用来约束同一个线程内的内存访问排序方式的，虽然同一个线程内的代码顺序重排不会影响本线程的执行结果（如果结果都不一致，那么重排就没有意义了），但是在多线程环境下，重排造成的数据访问顺序变化会影响其它线程的访问结果。
+
+### 流程
+```C
+// data structure
+struct io_uring_params {
+    __u32 sq_entries;  // sq队列深度
+    __u32 cq_entries;  // cq队列深度
+    __u32 flags;
+    __u32 sq_thread_cpu;
+    __u32 sq_thread_idle;
+    __u32 resv[5];
+    struct io_sqring_offsets sq_off;  //the application uses the sq_off member to figure out the offsets of the various ring members; 里面存储的都是偏移量
+    struct io_cqring_offsets cq_off;
+};
+
+
+struct io_sqring_offsets {
+    __u32 head; /* offset of ring head */
+    __u32 tail; /* offset of ring tail */
+    __u32 ring_mask; /* ring mask value */
+    __u32 ring_entries; /* entries in ring */
+    __u32 flags; /* ring flags */
+    __u32 dropped; /* number of sqes not submitted */
+    __u32 array; /* sqe index array */
+    __u32 resv1;
+    __u64 resv2;
+};
+
+#define IORING_OFF_SQ_RING 0ULL
+#define IORING_OFF_CQ_RING 0x8000000ULL
+#define IORING_OFF_SQES 0x10000000ULL   // sqe index array
+
+
+struct io_uring_sqe {
+    __u8 opcode;  //the operation code of this particular request. 描述是什么操作 e.x. IORING_OP_READV
+    __u8 flags;
+    __u16 ioprio;
+    __s32 fd;
+    __u64 off;
+    __u64 addr; // 若是vectored read/write 则为 iovec地址； 否则为读写user 内存地址
+    __u32 len;  // iovec 数量； 或 读写长度
+    union {
+    __kernel_rwf_t rw_flags;
+    __u32 fsync_flags;
+    __u16 poll_events;
+    __u32 sync_range_flags;
+    __u32 msg_flags;
+    };
+    __u64 user_data;  // 用于match 直接copy到cqe中
+    union {
+    __u16 buf_index;
+    __u64 __pad2[3];
+    };
+};
+
+struct io_uring_cqe {
+    __u64 user_data; // 用来与 sqe 匹配任务的，因为是无序的执行
+    __s32 res;   // result (bytes successed or Errnor)
+    __u32 flags; // can carry meta data related to this operation
+};
+
+io_uring_params* p = new(io_uring_params);
+// 创建 io_uring实例， 返回实例 fd
+int io_uring_setup(unsigned entries, struct io_uring_params *params);
+
+
+ring_fd = io_uring_setup(QUEUE_DEPTH, p);
+
+// submit
+int sub_ring_sz = p.sq_off.array + p.sq_entries * sizeof(unsigned);
+sq_ptr = mmap(0, sub_ring_sz, PROT_READ | PROT_WRITE,
+                        MAP_SHARED | MAP_POPULATE, ring_fd, IORING_OFF_SQ_RING);
+
+sqes = mmap(0, p.sq_entries * sizeof(struct io_uring_sqe), PROT_READ | PROT_WRITE,
+                        MAP_SHARED | MAP_POPULATE, ring_fd, IORING_OFF_SQES);
+
+sring_tail = sq_ptr + p.sq_off.tail;
+sring_mask = sq_ptr + p.sq_off.ring_mask;
+sring_array = sq_ptr + p.sq_off.array;
+
+{
+    unsigned index, tail;
+
+    /* Add our submission queue entry to the tail of the SQE ring buffer */
+    tail = *sring_tail;
+    index = tail & *sring_mask;
+    struct io_uring_sqe *sqe = &sqes[index];
+    sring_array[index] = index;
+    tail++;
+
+    /* Update the tail */
+    io_uring_smp_store_release(sring_tail, tail);
+
+    /*
+    * Tell the kernel we have submitted events with the io_uring_enter()
+    * system call. We also pass in the IOURING_ENTER_GETEVENTS flag which
+    * causes the io_uring_enter() call to wait until min_complete
+    * (the 3rd param) events complete.
+    * */
+    int ret =  io_uring_enter(ring_fd, 1,1,
+                                IORING_ENTER_GETEVENTS);
+}
+
+// io_uring supports draining the submission side queue until all previous completions have finished by setting IOSQE_IO_DRAIN in the sqe flags field
+
+// set IOSQE_IO_LINK in the sqe flags field. If set, the next sqe will not be started before the previous sqe has completed successfully e.g. copy
+
+
+
+// complete
+int cring_sz = p.cq_off.cqes + p.cq_entries * sizeof(struct io_uring_cqe);
+cq_ptr = mmap(0, cring_sz, PROT_READ | PROT_WRITE,
+                        MAP_SHARED | MAP_POPULATE,
+                        ring_fd, IORING_OFF_CQ_RING);
+cring_head = cq_ptr + p.cq_off.head;
+cring_tail = cq_ptr + p.cq_off.tail;
+cring_mask = cq_ptr + p.cq_off.ring_mask;
+cqes = cq_ptr + p.cq_off.cqes;
+{
+    struct io_uring_cqe *cqe;
+    unsigned head;
+
+    /* Read barrier */
+    head = io_uring_smp_load_acquire(cring_head);
+    /*
+    * Remember, this is a ring buffer. If head == tail, it means that the
+    * buffer is empty.
+    * */
+    if (head == *cring_tail)
+        return -1;
+
+    /* Get the entry */
+    cqe = &cqes[head & (*cring_mask)];
+}
+```
+
+## lib_uring
+
+application doesn't have to worry about memory barriers at all, or do any ring buffer
+management on its own. This makes the API much simpler to use and understand
+
+```C
+struct io_uring *ring = zmalloc(sizeof(struct io_uring));
+struct io_uring_params params;
+memset(&params, 0, sizeof(params));
+int ret = io_uring_queue_init_params(IOUringDepth, ring, &params);
+
+void ioUringPrepWrite(client *c) {
+    struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
+    io_uring_prep_send(sqe, c->conn->fd, c->buf + c->sentlen,
+        c->bufpos - c->sentlen, MSG_DONTWAIT);
+    io_uring_sqe_set_data(sqe, c);   // DATA-flag
+    uringQueueLen++;
+}
+
+void ioUringSubmitAndWait(void) {
+    /* wait for all submitted queue entries complete. */
+    while (uringQueueLen) {
+        io_uring_submit(server.io_uring);
+        struct io_uring_cqe *cqe;
+        if (io_uring_wait_cqe(server.io_uring, &cqe) == 0) { /*return the completion event for the
+sqe that we just submitted, provided that you have no other sqes in flight. If you do, the completion event could be for
+another sqe. */
+            client *c = io_uring_cqe_get_data(cqe);
+            c->nwritten = cqe->res;
+            if ((c->bufpos - c->sentlen) > c->nwritten && c->nwritten > 0) {
+                c->sentlen += c->nwritten;
+                ioUringPrepWrite(c);
+            }
+            io_uring_cqe_seen(server.io_uring, cqe);  // already deal with this one, make current cqe available
+            uringQueueLen--;
+        }
+    }
+}
+
+
+```
+It is important to remember that I/O requests submitted to
               the kernel can complete in any order.  It is not necessary
               for the kernel to process one request after another, in
               the order you placed them.
@@ -108,23 +295,22 @@ When
               method for doing so is utilizing the user_data field in
               the request, which is passed back on the completion side.
 
-## data-structure
 
-IOSQE_IO_DRAIN: 等待前一个IO完成后才执行下一个IO，执行Fsync
+polling refers to performing IO without relying on hardware interrupts to signal a completion event. When IO is polled,
+the application will repeatedly ask the hardware driver for status on a submitted IO request. This is different than nonpolled
+IO, where an application would typically go to sleep waiting for the hardware interrupt as its wakeup source
 
-IOSQE_IO_LINK: Continue until set do this sqe IFF previous succeed
+To utilize IO polling, IORING_SETUP_IOPOLL must be set in the flags passed in to the io_uring_setup(2) system call, or
+to the io_uring_queue_init(3) liburing library helper. When polling is utilized, the application can no longer check
+the CQ ring tail for availability of completions, as there will not be an async hardware side completion event that
+triggers automatically. Instead the application must actively find and reap these events by calling io_uring_enter(2)
+with IORING_ENTER_GETEVENTS set and min_complete set to the desired number of events
 
-
-
-
-IORING_SETUP_IOPOLL: use a kworker to poll submission queue
-
-io_uring_register: reduce get_user_pages put_pages
-
-io_uring_enter
-
-io_uring_setup
-
+kernel-poll:
+io_uring instance must be registered with IORING_SETUP_SQPOLL specific for the
+io_uring_params flags member, or passed in to io_uring_queue_init(3). Additionally, should the application wish
+to limit this thread to a specific CPU, this can be done by flagging IORING_SETUP_SQ_AFF as well, and also setting the
+io_uring_params sq_thread_cpu to the desired CPU
 # Bloom filter
 
 - problem: false positive
@@ -230,7 +416,28 @@ new operator/delete operator就是new和delete操作符，而operator new/operat
 - new operator 调用operator new分配足够的空间，并调用相关对象的构造函数， 不可重载
     
 - operator new 只分配所要求的空间，不调用相关对象的构造函数。可以被重载，重载时，返回类型必须声明为void* 且第一个参数类型必须为表达要求分配空间的大小（字节），类型为size_t
-    
+    ```cpp
+    #include <iostream>
+    #include <cstdlib>
+    using namespace std;
+    class Box {
+    public:
+    Box() {
+        cout << "Constructor called!" <<endl;
+    }
+    void *operator new(size_t size) {
+        cout << "Call Operator New"<<endl;
+        void *p = malloc(size);
+        return p;
+    }
+    };
+    int main() {
+    Box* myBox = new Box;   // 这里使用new operator 调用了重载的 operateor new 进行空间分配， 然后new operator继续调用了相关对象的构造函数
+    }
+    // output example:
+    // Call Operator New
+    // Constructor called!
+    ```
 - placement new 是重载operator new 的一个标准、全局的版本，它不能够被自定义的版本代替，结果是允许用户把一个对象放到一个特定的地方，达到调用构造函数的效果。
     
     ```c
@@ -325,7 +532,7 @@ void good()
         if (*(this->ref_count) > 0) {  // == 0 是否存在？ 不应该，智能指针不允许指针悬垂
             this->~mysmart_pointer();
         }
-        this->~mysmart_pointer();
+        //this->~mysmart_pointer();
         this->obj = sptr.obj;
         this->ref_count = sptr.ref_count;
         *(this->ref_count) += 1;
@@ -345,6 +552,9 @@ void good()
         ```
 2. shared_ptr\ weak_ptr
    -  shared_ptr maintains reference counting ownership of its contained pointer in cooperation with all copies of the shared_ptr. An object referenced by the contained raw pointer will be destroyed when and only when all copies of the shared_ptr have been destroyed
+      -  shared_ptr引用计数是线程安全的
+      -  但是引用对象不是，即多个shared_ptr并发读写时可能产生race condition
+  
    -  A weak_ptr is a container for a raw pointer. It is created as a copy of a shared_ptr. The existence or destruction of weak_ptr copies of a shared_ptr have no effect on the shared_ptr or its other copies. After all copies of a shared_ptr have been destroyed, all weak_ptr copies become empty. 防止循环引用
    - 
         ```C++
@@ -649,13 +859,13 @@ MyClass B{ std::move(A) };  // 通过移动构造函数创建新对象B
 当返回局部对象时，我们不用画蛇添足，直接返回对象即可，编译器会优先使用最佳的NRVO，在没有NRVO的情况下，会尝试执行移动构造函数，最后才是开销最大的拷贝构造函数。
 
 # function point type
-The signature void *(*)(void *) in C represents a pointer to a function that takes a single argument of type void * and returns a void *.
+The signature void *(*func_name)(void *) in C represents a pointer to a function that takes a single argument of type void * and returns a void *.
 
 Here's a breakdown of what each part of the signature means:
 
 void *: This is the return type of the function. It indicates that the function returns a pointer to an unspecified type (i.e., a generic pointer).
 
-(*): This part of the signature indicates that we are dealing with a function pointer.
+(*func_name): This part of the signature indicates that we are dealing with a function pointer.
 
 (void *): Inside the parentheses, void * represents the parameter type of the function. It indicates that the function takes a single argument, which is a pointer to an unspecified type.
 
@@ -774,3 +984,119 @@ for (;;) {
 // In conclusion, edge-triggered epoll needs non-blocking I/O to ensure that your application processes all available data without risking indefinite blocking. Level-triggered epoll can tolerate blocking I/O better, but even then, it’s not recommended for high-performance, responsive applications.
 ```
 
+
+# raft协议
+
+## 问题描述
+
+在 网络、 节点不可靠的情况下，是否可以保持各个节点的数据一致性（只考虑信任网络，非拜占庭）
+
+状态的一致性
+- 强一致性   ：一节点写入后，等待其余所有节点同样写入指令
+- 最终一致性 ：通过AOF的日志，保证所有的节点最后达成同样的状态
+
+节点的分级：
+- 可读写
+- 可读
+- 不可用
+
+组织机器使其状态最终一致，并且允许局部失败的算法
+
+约束：
+1.网络不确定性： 分区（节点不能连通） 冗余（自增命令等） 丢失 乱序
+2.基本可用性：大部分节点互相通信的时候，集群就应该可用
+3.不依赖时钟： 各个节点所处时区可能不一致
+4.快速响应：不能依赖最慢的节点
+
+可行解：
+1. 初始化只有一个leader，leader处理写入命令，决定日志顺序
+2. 写请求均重定向到leader处理
+3. leader写入自己日志后，同步，当收到到半数以上的follower ACK后，才提交日志
+4. leader若崩溃，follower可通过心跳感知并选举出新的leader
+5. 若有新的节点加入或退出，信息同步到所有节点
+
+## 基本流程
+
+1. client  命令写入 leader节点
+2. leader 更新日志，并同步给各个节点
+3. 各节点更新日志，回复ACK给leader
+4. leader回复给client，并同步\异步写入
+
+raft状态机
+
+1. 所有节点成为 follower
+2. 心跳计时器超时，成为 candidate （为防止选票瓜分，各个节点的心跳超时是在过期的范围内的一个随机值）
+3. candidate 发送投票rpc, 并设置投票定时器，
+   1. 若获得半数以上投票 成为leader
+   2. 若超时，重新发出投票rpc,
+   3. 若收到leader心跳，返回为follower
+4. 若遇到脑裂（leader收到别的leader心跳），term计数更低的自动成为follower
+
+## 数据结构
+持久化
+currentterm
+votedfor
+log
+
+内存
+commitindex
+lastapplied
+
+leader
+nextindex
+matchindex
+
+# static 关键字
+若初始化，则放在.data段，否则放在.bss段
+
+- 根据定义的位置，分为全局static 和 局部static，其生命周期是一样的，只是可见阈不同
+- static 变量只能在本源文件中使用
+- 类中的使用
+  - 类成员变量，所有实例都共享该静态成员
+  - 类成员函数，相似，类成员函数是属于类，而不属于各个实例，固其没有this指针（相比较于一般类成员函数，编译器会自动给其赋予实例的this指针）
+
+# inline 与 define
+
+- 编译器指令  vs 预处理指令
+- define没有类型检查
+
+# ++i i++
+- ++i 更快
+- ++i 可做左值
+
+# new malloc
+- 关键字 和 函数
+- new: 创建内存 + 调用构造函数
+
+# atomic and memory_order
+## atomic
+```C++
+#include <atomic>
+
+// std::atomic_flag is an atomic boolean type. Unlike all specializations of std::atomic, it is guaranteed to be lock-free. Unlike std::atomic<bool>, std::atomic_flag does not provide load or store operations.
+
+std::atomic_flag flag1{};
+flag1.test_and_set(); // Atomically changes the state of a std::atomic_flag pointed to by obj to set (true) and returns the value it held before.
+flag1.atomic_flag_clear(); // set to false
+
+
+// std::atomic<*> 不能用来构造、赋值函数
+
+// store load is_lock_free exchange
+// compare_exchange_weak  compare_exchange_strong
+
+// std::atomic<T*> 指针
+```
+
+
+##
+```C++
+enum memory_order {
+    memory_order_relaxed,
+    memory_order_consume,
+    memory_order_acquire,
+    memory_order_release,
+    memory_order_acq_rel,
+    memory_order_seq_cst
+};
+```

@@ -16,6 +16,19 @@
 #define QUEUE_DEPTH 1
 #define BLOCK_SZ    1024
 
+
+
+struct io_uring_params {
+__u32 sq_entries;
+__u32 cq_entries;
+__u32 flags;
+__u32 sq_thread_cpu;
+__u32 sq_thread_idle;
+__u32 resv[5];
+struct io_sqring_offsets sq_off;
+struct io_cqring_offsets cq_off;
+};
+
 /* Macros for barriers needed by io_uring */
 #define io_uring_smp_store_release(p, v)            \
     atomic_store_explicit((_Atomic typeof(*(p)) *)(p), (v), \
