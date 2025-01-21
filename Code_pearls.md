@@ -626,8 +626,12 @@ b->qux2();
     b. Vptr  
     Every time the compiler creates a vtable for a class, it adds an extra argument to it: a pointer to the corresponding virtual table, called the vpointer.
     vpointer is just another class member added by the compiler and increases the size of every object that has a vtable by sizeof(vpointer)
-# extern关键字
 
+3. - 每个实例初始化时候编译器会增加一项vptr, 
+   - 每个类全局只有一个 vtbl, 存在与 .data段中，每一项指向对应的函数地址
+   - 函数实现 存储在 .code段
+
+# extern关键字
 
 Use extern to declare functions or variables defined in another file when you don't have or want to use a header file.
 It's best practice to declare such functions or variables in a header file and include that header file where needed.
@@ -680,6 +684,18 @@ parameters(形参) are lvalues, but the arguments（实参）with which they are
 
 Function objects created through lambda expressions are known as closures
 
+```cpp
+ /**
+   *  @brief  Convert a value to an rvalue.
+   *  @param  __t  A thing of arbitrary type.
+   *  @return The parameter cast to an rvalue-reference to allow moving it.
+  */
+  template<typename _Tp>
+    constexpr typename std::remove_reference<_Tp>::type&&
+    move(_Tp&& __t) noexcept
+    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+
+```
 ## move 移动语义
 类似RUST所有权的概念，移交所有权而不进行拷贝。
 ```cpp
@@ -750,23 +766,35 @@ public:
 MyClass()
     : val{ 998 }
     {
-    name = new char[] { "Peter" };
+        name = new char[] { "Peter" };
     }
 // 实现移动构造函数
 MyClass(MyClass&& rValue) noexcept
     : val{ std::move(rValue.val) }  // 转移数据
     {
-    rValue.val = 0;  // 清除被转移对象的数据
-    name = rValue.name;  // 转移数据
-    rValue.name = nullptr;  // 清除被转移对象的数据
+        rValue.val = 0;  // 清除被转移对象的数据
+        name = rValue.name;  // 转移数据
+        rValue.name = nullptr;  // 清除被转移对象的数据
     }
+
+// 实现移动赋值函数
+MyClass& operator=(MyClass&& rValue) noexcept {
+    if (this != &rValue) {  // 自我赋值检查 A = A；
+        val = std::move(rValue.val);
+        rValue.val = 0;
+        name = rValue.name;
+        rValue.name = nullptr;
+    }
+    return *this;
+}
+
     ~MyClass()
     {
-    if (nullptr != name)
-    {
-    delete[] name;
-        name = nullptr;
-    }
+        if (nullptr != name)  // important: 确保被移动后的class能正常析构
+        {
+            delete[] name;
+            name = nullptr;
+        }
     }
 private:
 int val;
@@ -858,6 +886,89 @@ MyClass B{ std::move(A) };  // 通过移动构造函数创建新对象B
 - 
 当返回局部对象时，我们不用画蛇添足，直接返回对象即可，编译器会优先使用最佳的NRVO，在没有NRVO的情况下，会尝试执行移动构造函数，最后才是开销最大的拷贝构造函数。
 
+# Perfect forward
+perfect forwarding allows to write a single function template that takes n arbitrary argument and forward them transparently to another arbitrary function, preserved all **nature(modifiable, const, lvalue or rvalue)** of argument during forward process.
+
+```cpp
+template <typename T1, typename T2>
+void functionA(T1&& t1, T2&& t2) {
+    functionB(std::forward<T1>(t1),
+                std::forward<T2>(t2)); // 利用forward实现完美转发
+}
+```
+完美转发与移动语义需要紧密合作实现moveable的类
+## unperfect forwarding
+example
+```cpp
+void process(int& i) {
+    cout<< "process(int&)" << endl;
+}
+
+void process(int&& i) {
+    cout<< "process(int&&)" << endl;
+}
+
+void forward(int&& i) {
+    cout<< "forward(int&&)" << endl;
+    process(i);
+}
+
+forward(2);
+/*
+    1. 正常执行 第一句输出
+    2. 但是会调用 process(int& i)，rvalue在传递过程中变成了一个named object
+*/
+int a = 0;
+forward(std::move(a));
+/*  同上
+    1. 正常执行 第一句输出
+    2. 但是会调用 process(int& i)，rvalue在传递过程中变成了一个named object
+*/
+
+forward(a);
+/*
+    1. 报错 不能bind int 到 int&&
+*/
+```
+## 完美转发
+源码见 bits/move.h
+```cpp
+/**
+*  @brief  Forward an lvalue.
+*  @return The parameter cast to the specified type.
+*
+*  This function is used to implement "perfect forwarding".
+*  使用 std::remove_reference<_Tp>::type 得到_Tp的原视类型，除去所有的引用
+*/
+template<typename _Tp>
+    constexpr _Tp&&
+    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    { return static_cast<_Tp&&>(__t); }
+
+/**
+*  @brief  Forward an rvalue.
+*  @return The parameter cast to the specified type.
+*
+*  This function is used to implement "perfect forwarding".
+*  使用 std::remove_reference<_Tp>::type 得到_Tp的原视类型，除去所有的引用
+*/
+template<typename _Tp>
+    constexpr _Tp&&
+    forward(typename std::remove_reference<_Tp>::type&& __t) noexcept
+    {
+        static_assert(!std::is_lvalue_reference<_Tp>::value, "template argument"
+                    " substituting _Tp is an lvalue reference type");
+        return static_cast<_Tp&&>(__t);
+    }
+/*  why use static_cast<_Tp&&> this cast?
+cpp reference rule:
+T& & → T&
+T& && → T&
+T&& & → T&
+T&& && → T&&
+*/
+```
+
 # function point type
 The signature void *(*func_name)(void *) in C represents a pointer to a function that takes a single argument of type void * and returns a void *.
 
@@ -868,53 +979,6 @@ void *: This is the return type of the function. It indicates that the function 
 (*func_name): This part of the signature indicates that we are dealing with a function pointer.
 
 (void *): Inside the parentheses, void * represents the parameter type of the function. It indicates that the function takes a single argument, which is a pointer to an unspecified type.
-
-
-# sss
-
-```cpp
-
-typedef union epoll_data
-{
-  void *ptr;
-  int fd;
-  uint32_t u32;
-  uint64_t u64;
-} epoll_data_t;
-
-struct epoll_event
-{
-  uint32_t events;      /* Epoll events */
-  epoll_data_t data;    /* User data variable */
-} 
-
-```
-
-
-GETITIMER(2)                                                        Linux Programmer's Manual                                                        GETITIMER(2)
-
-NAME
-       getitimer, setitimer - get or set value of an interval timer
-
-SYNOPSIS
-       #include <sys/time.h>
-
-       int getitimer(int which, struct itimerval *curr_value);
-       int setitimer(int which, const struct itimerval *new_value,
-                     struct itimerval *old_value);
-
-DESCRIPTION
-       These  system  calls  provide  access  to  interval timers, that is, timers that initially expire at some point in the future, and (optionally) at regular
-       intervals after that.  When a timer expires, a signal is generated for the calling process, and the timer is reset  to  the  specified  interval  (if  the
-       interval is nonzero).
-
-
-
-If either field in new_value.it_value is nonzero, then the timer is armed to initially expire at the  speci‐
-       fied time.  If both fields in new_value.it_value are zero, then the timer is disarmed.
-
-       The new_value.it_interval field specifies the new interval for the timer; if both of its subfields are zero,
-       the timer is single-shot.
 
 # epoll edge level
 ```C
@@ -1068,6 +1132,137 @@ matchindex
 - 关键字 和 函数
 - new: 创建内存 + 调用构造函数
 
+# 多态
+多态是对一个行为的封装，不同的对象在同一个行为的不同表现状态
+分为两类
+
+- 静态多态
+    函数重载
+    参数，返回值等都可以不同，只描述同一行为
+```C
+int add(int a, int b) {
+return a + b;
+}
+
+double add(double a, double b) {
+return a + b;
+}
+```
+- 动态多态
+虚函数与继承
+```C++
+Derive d;
+Base b = d;
+b.g();  // 如图 b7f 的，call的函数编译器已经静态确定了
+
+Base *pb = new Derive();
+pb->g(); // 通过this指针找到vptr（add 8） 在运行时确定调用的函数
+```
+![virtual function](images/动态多态.PNG) 
+
+# 虚继承与菱形继承
+虚基类的实例化 只实例化一次
+
+```C++
+//公共基类
+class N
+{
+public:
+    N(int data1, int data2, int data3) : 
+        m_data1(data1), 
+        m_data2(data2), 
+        m_data3(data3)
+    {
+        std::cout << "call common constructor" << std::endl;
+    }
+    virtual ~N(){}
+
+    void    display()
+    {
+        std::cout << m_data1 << std::endl;
+    }
+
+public :
+    int     m_data1;
+    int     m_data2;
+    int     m_data3;
+};
+
+
+class A : /*virtual*/ public N
+{
+public:
+    A() :N(11, 12, 13), m_a(1)
+    {
+        std::cout << "call class A constructor" << std::endl;
+    }
+    ~A(){}
+
+public :
+    int m_a;
+};
+
+class B :  /*virtual*/ public N
+{
+public:
+    B() :N(21, 22, 23),m_b(2)
+    {
+        std::cout << "call class B constructor" << std::endl;
+    }
+    ~B(){}
+
+public :
+    int m_b;
+};
+
+
+class C : public A ,  public B
+{
+public:
+    //负责对基类的初始化
+    C() : A(), B(),
+        m_c(3)
+    {
+        std::cout << "call class C constructor" << std::endl;
+    }
+    void show()
+    {
+        std::cout << "m_c=" << m_c << std::endl;
+    }
+
+ public :
+    int m_c;
+};
+```
+
+问题：
+1. 二义性 若要访问N, 需要指定 C data; data.A::m_data1 = 10; data.B::m_data1 = 10;
+2. 空间浪费 类C中存在 两份的基类N，分别存在类A和类B中，如果数据多则严重浪费空间，也不利于维护
+
+## 虚继承
+```C++
+class A//A 基类
+{ ... };
+
+//类B是类A的公用派生类, 类A是类B的虚基类
+class B : virtual public A
+{  ... };
+
+//类C是类A的公用派生类, 类A是类C的虚基类
+class C : virtual public A
+{  ... };
+
+```
+C++编译系统只执行最后的派生类对基类的构造函数调用，而忽略其他派生类对虚基类的构造函数调用。从而避免对基类数据成员重复初始化。因此，虚基类只会构造一次。
+# 纯虚函数 与 虚函数
+
+
+# 拷贝构造函数必须以引用传值
+否则的话， 会导致拷贝构造函数的无线递归调用
+
+# STL 六大
+algorithm container iterator allocator adaptor  function 
+
 # atomic and memory_order
 ## atomic
 ```C++
@@ -1099,4 +1294,14 @@ enum memory_order {
     memory_order_acq_rel,
     memory_order_seq_cst
 };
+
+struct meta_data {
+uint64_t start_byte;
+uint64_t length;
+uint64_t key:46; 
+uint64_t snap_id:18;
+...
+...
+};
+
 ```
