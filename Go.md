@@ -74,6 +74,13 @@ sudo make all
 # 启动本地单节点集群： 
 sudo ./hack/local-up-cluster.sh  
 
+export KUBERNETES_PROVIDER=local
+
+cluster/kubectl.sh config set-cluster local --server=https://localhost:6443 --certificate-authority=/var/run/kubernetes/server-ca.crt
+cluster/kubectl.sh config set-credentials myself --client-key=/var/run/kubernetes/client-admin.key --client-certificate=/var/run/kubernetes/client-admin.crt
+cluster/kubectl.sh config set-context local --cluster=local --user=myself
+cluster/kubectl.sh config use-context local
+cluster/kubectl.sh
 ```
 #### 可能存在的问题
 - 查看log, /var/kubelet.log
@@ -120,6 +127,19 @@ sudo vi ./hack/lib/golang.sh
 
 go mod init <project_name>
 
+##  _ 占位符
+
+### 在import 中使用
+import _ "github.com/mattn/go-sqlite3"
+The blank identifier means the package's exported symbols (functions, types, etc.) are not directly accessible in the importing code
+
+import _ "github.com/mattn/go-sqlite3" ensures the SQLite driver is registered with database/sql
+
+When import _ is used, the Go compiler:
+Loads the package.
+Executes any init() functions in that package.
+For github.com/mattn/go-sqlite3, this includes registering the SQLite driver.
+the init() function is a special function used for initialization. It is automatically called by the Go runtime before the main() function is executed
 # channel 
 通道是引用类型，通道类型的空值是nil
 声明的通道后需要使用make函数初始化之后才能使用
@@ -438,3 +458,9 @@ Purpose: Ensures finalizer functions are called on objects that require special 
 
 # 
 https://github.com/PJSSABER/virtual-kubelet
+
+
+
+APISERVER MD
+kubelet
+
