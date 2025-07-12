@@ -62,3 +62,30 @@ git reset [<mode>] [<commit>]
 
 see ![git_reset](/images/git_reset.png)
 
+
+# merge in one commit
+
+git log --oneline main..yiyu_dev
+
+git rebase -i main
+
+Change all but the first pick to squash (or s)
+Save and exit, then write your commit message.
+
+git push --force-with-lease origin yiyu_dev
+
+
+# 
+see what commits you have that aren't in main:
+git log --oneline main..HEAD
+
+
+reset to main while keep changes
+
+merge with main
+
+git reset --soft main
+
+git commit -m "feat: your comprehensive commit message here"
+
+git push --force-with-lease origin yiyu_dev

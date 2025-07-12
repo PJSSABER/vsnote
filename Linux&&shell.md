@@ -218,4 +218,32 @@ else
 fi
 ```
 
+# df 和 du的区别
+```shell
+# 前提， 设备 A 划区为 p1, p2; 
+# /dev/Ap1 -> /data, 
+# /dev/Ap2 -> /data/data2
 
+# du /data, dist usage
+du -sh /data
+
+# Counts everything inside /data, including /data/data2 (which belongs to Ap2)
+# Includes space used by Ap1 and Ap2 together
+
+# filesystem usage
+df -h /data
+
+# Does NOT count /data/data2, because df only checks /dev/Ap1(where its mounted)
+# Shows only Ap1's disk usage
+```
+
+
+
+{"code":0,"msg":"ok","data":
+{"expire":"2025-03-26T10:52:36.660642379Z",
+"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InoxMjNAdWNsYS5lZHUiLCJleHAiOjE3NDI5ODYzNTYsImlkIjoiZThjYjZkY2UtNzQ2ZS00YmNmLTk3MzUtZTk4M2Q5Y2VkODlmIiwib3JnYW5pemF0aW9uSUQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDAiLCJvcmlnX2lhdCI6MTc0Mjk4Mjc1NiwidHlwZSI6InVzZXIifQ.AZ67CXXyodc7BEGk70Y7-bH_9t0dLTTmJxziCRnyDHA",
+"user":{"id":"e8cb6dce-746e-4bcf-9735-e983d9ced89f",
+
+"name":"z123","email":"z123@ucla.edu","emailIsVerified":false,"information":{"tel":"","telIsVerified":false,"country":"","city":"","address":""},"organizations":[{"id":"cfdba48b-d19c-4838-8227-39b0612ba064","name":"z123@ucla.edu Individual Organization","information":{"tel":"","telIsVerified":false,"country":"","city":"","address":""},"users":null,"createdAt":"2025-03-26T09:52:36.65035Z","updatedAt":"2025-03-26T09:52:36.65035Z"}],"defaultOrganization":{"id":"cfdba48b-d19c-4838-8227-39b0612ba064","name":"z123@ucla.edu Individual Organization","information":{"tel":"","telIsVerified":false,"country":"","city":"","address":""},"users":null,"createdAt":"2025-03-26T09:52:36.65035Z","updatedAt":"2025-03-26T09:52:36.65035Z"},"roles":["s_user"],"permissions":[],"tags":[{"key":"owner","value":"zeyuwang"},{"key":"created_by","value":"neil"},{"key":"source","value":"web2"}],"createdAt":"2025-03-26T09:52:36.652332Z","updatedAt":"2025-03-26T09:52:36.652332Z"}}}
+
+ak-7df41ef297f7629b4a4b96f91ab521eabb58e00a77b68526a2b50367bc36c2e3

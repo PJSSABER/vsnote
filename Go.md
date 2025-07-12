@@ -129,6 +129,11 @@ go mod init <project_name>
 
 ##  _ 占位符
 
+var _ PodAdminHandler = (*podAdminHandler)(nil)
+
+用于通过编译， 表明申明的该变量在后续中并未使用
+The code is checking whether podAdminHandler implements PodAdminHandler
+
 ### 在import 中使用
 import _ "github.com/mattn/go-sqlite3"
 The blank identifier means the package's exported symbols (functions, types, etc.) are not directly accessible in the importing code
@@ -456,11 +461,215 @@ Description: This goroutine waits for objects with finalizers to be ready for cl
 Location: /usr/local/go/src/runtime/proc.go:425 runtime.gopark
 Purpose: Ensures finalizer functions are called on objects that require special cleanup before being garbage collected.
 
-# 
+# interface && 反射
+
+# struct tag & 反射
+
+```golang
+// an example using reflect 
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"reflect"
+)
+
+type User struct {
+	ID    int    `json:"id" db:"user_id" binding:"required"`
+	Name  string `json:"name" db:"full_name"`
+	Email string `json:"email,omitempty" db:"email_address"`
+}
+
+/*
+    User 的 struct tag 事例
+    当encode到json格式的时候，id 作为 json 的 key
+    binding:"required" → Ensures the field is not empty.
+    binding:"dive,required" → Ensures each element inside Tags is non-empty.
+*/
+
+func main() {
+	user := User{ID: 1, Name: "Alice", Email: "alice@example.com"}
+
+	// JSON Serialization using struct tags
+	jsonData, _ := json.Marshal(user)
+	fmt.Println(string(jsonData)) // Output: {"id":1,"name":"Alice","email":"alice@example.com"}
+
+	// Reflection: Read Struct Tags
+	t := reflect.TypeOf(user)       // get types of variable during runtime
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		fmt.Printf("Field: %s, JSON Tag: %s, DB Tag: %s\n",
+			field.Name, field.Tag.Get("json"), field.Tag.Get("db"))
+	}
+    /*
+    output example:
+        Field: ID, JSON Tag: id, DB Tag: user_id
+        Field: Name, JSON Tag: name, DB Tag: full_name
+        Field: Email, JSON Tag: email,omitempty, DB Tag: email_address
+    */
+
+/************* runtime get & modify value by reflect **********/
+	v := reflect.ValueOf(&user).Elem() // Get the actual struct
+
+	// Modify the Name field
+	nameField := v.FieldByName("ID")
+	if nameField.CanSet() {
+		nameField.SetInt(2)
+	}
+
+	jsonData, _ = json.Marshal(user)
+	fmt.Println(string(jsonData)) // Output: {"id":2,"name":"Alice","email":"alice@example.com"}
+
+}
+```
+
+#
+if a variable is exported (starts with an uppercase letter), you can use it from another package.
+
 https://github.com/PJSSABER/virtual-kubelet
 
 
+# go defer 实现
+Go 语言的 defer 会在当前函数返回前执行传入的函数，defer 的执行发生在 return 语句将返回值写入返回值变量之后，并且在函数真正退出之前。当发生 panic 时，defer 语句仍然会被执行，这使得 defer 成为处理错误和恢复状态的理想选择
 
-APISERVER MD
-kubelet
+## defer 关键字的调用时机以及多次调用 defer 时执行顺序是如何确定的； 如果有多个 defer 语句，它们会按照后进先出的顺序执行，最晚定义的 defer 语句最先执行, 类似栈
+```golang
+func main() {
+    for i := 0; i < 5; i++ {
+        defer fmt.Println(i)
+    } 
+}
 
+// $ go run main.go
+// 4
+// 3
+// 2
+// 1
+// 0
+```
+## defer 关键字使用传值的方式传递参数时会进行预计算，导致不符合预期的结果；
+
+## defer 实现
+
+### 结构体 与 机制
+```golang
+// runtime._defer
+type _defer struct {
+	siz       int32     // 内存大小
+	started   bool
+	openDefer bool  // 开放编码优化
+	sp        uintptr // stack pointer
+	pc        uintptr // pc counter
+	fn        *funcval
+	_panic    *_panic
+	link      *_defer  // 单向链表的指针
+}
+
+// 中间代码生成阶段的 cmd/compile/internal/gc.state.stmt 会负责处理程序中的 defer，该函数会根据条件的不同，使用三种不同的机制处理该关键字
+func (s *state) stmt(n *Node) {
+	...
+	switch n.Op {
+	case ODEFER:
+		if s.hasOpenDefers {
+			s.openDeferRecord(n.Left) // 开放编码
+		} else {
+			d := callDefer // 堆分配
+			if n.Esc == EscNever {
+				d = callDeferStack // 栈分配
+			}
+			s.callResult(n.Left, d)
+		}
+	}
+}
+```
+
+### 堆分配
+根据 cmd/compile/internal/gc.state.stmt 方法对 defer 的处理我们可以看出，堆上分配的 runtime._defer 结构体是默认的兜底方案，当该方案被启用时，编译器会调用 cmd/compile/internal/gc.state.callResult 和 cmd/compile/internal/gc.state.call，这表示 defer 在编译器看来也是函数调用。
+
+cmd/compile/internal/gc.state.call 会负责为所有函数和方法调用生成中间代码，它的工作包括以下内容：
+
+获取需要执行的函数名、闭包指针、代码指针和函数调用的接收方；
+获取栈地址并将函数或者方法的参数写入栈中；
+使用 cmd/compile/internal/gc.state.newValue1A 以及相关函数生成函数调用的中间代码；
+如果当前调用的函数是 defer，那么会单独生成相关的结束代码块；
+获取函数的返回值地址并结束当前调用；
+```golang
+func (s *state) call(n *Node, k callKind, returnResultAddr bool) *ssa.Value {
+	...
+	var call *ssa.Value
+	if k == callDeferStack {
+		// 在栈上初始化 defer 结构体
+		...
+	} else {
+		...
+		switch {
+		case k == callDefer:
+			aux := ssa.StaticAuxCall(deferproc, ACArgs, ACResults)
+			call = s.newValue1A(ssa.OpStaticCall, types.TypeMem, aux, s.mem())
+		...
+		}
+		call.AuxInt = stksize
+	}
+	s.vars[&memVar] = call
+	...
+}
+```
+
+compile:
+deferproc 让runtime的时候，_defer 结构体创建在heap上
+将 defer 转换成了 runtime.deferproc，还在所有调用 defer 的函数结尾插入了 runtime.deferreturn
+
+cmd/compile/internal/gc.walkstmt 在遇到 ODEFER 节点时会执行 Curfn.Func.SetHasDefer(true) 设置当前函数的 hasdefer 属性；
+cmd/compile/internal/gc.buildssa 会执行 s.hasdefer = fn.Func.HasDefer() 更新 state 的 hasdefer；
+cmd/compile/internal/gc.state.exit 会根据 state 的 hasdefer 在函数返回之前插入 runtime.deferreturn 的函数调用；
+
+runtime:
+从调度器的延迟调用缓存池 sched.deferpool 中取出结构体并将该结构体追加到当前 Goroutine 的缓存池中；
+从 Goroutine 的延迟调用缓存池 pp.deferpool 中取出结构体；
+通过 runtime.mallocgc 在堆上创建一个新的结构体；
+
+runtime.deferreturn 会多次判断当前 Goroutine 的 _defer 链表中是否有未执行的结构体，该函数只有在所有延迟函数都执行后才会返回。
+
+### stack 
+
+```golang
+func (s *state) call(n *Node, k callKind) *ssa.Value {
+	...
+	var call *ssa.Value
+	if k == callDeferStack {
+		// 在栈上创建 _defer 结构体
+		t := deferstruct(stksize)
+		...
+
+		ACArgs = append(ACArgs, ssa.Param{Type: types.Types[TUINTPTR], Offset: int32(Ctxt.FixedFrameSize())})
+		aux := ssa.StaticAuxCall(deferprocStack, ACArgs, ACResults) // 调用 deferprocStack
+		arg0 := s.constOffPtrSP(types.Types[TUINTPTR], Ctxt.FixedFrameSize())
+		s.store(types.Types[TUINTPTR], arg0, addr)
+		call = s.newValue1A(ssa.OpStaticCall, types.TypeMem, aux, s.mem())
+		call.AuxInt = stksize
+	} else {
+		...
+	}
+	s.vars[&memVar] = call
+	...
+}
+```
+在编译期间 就在stack上创建了_defer
+
+所以在运行期间 runtime.deferprocStack 只需要设置一些未在编译期间初始化的字段，就可以将栈上的 runtime._defer 追加到函数的链表上
+
+### open
+Go 语言在 1.14 中通过开放编码（Open Coded）实现 defer 关键字，该设计使用代码内联优化 defer 关键的额外开销并引入函数数据 funcdata 管理 panic 的调用3，该优化可以将 defer 的调用开销从 1.13 版本的 ~35ns 降低至 ~6ns 左右
+
+编译期间判断 defer 关键字、return 语句的个数确定是否开启开放编码优化；
+通过 deferBits 和 cmd/compile/internal/gc.openDeferInfo 存储 defer 关键字的相关信息；
+如果 defer 关键字的执行可以在编译期间确定，会在函数返回前直接插入相应的代码，否则会由运行时的 runtime.deferreturn 处理；
+# gin & casbin
+
+
+
+
+
+1. pod 重启 确认存在 
+2. 
